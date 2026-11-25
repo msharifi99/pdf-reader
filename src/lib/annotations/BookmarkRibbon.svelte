@@ -15,6 +15,11 @@
   let name = $state('');
   let input: HTMLInputElement | undefined = $state();
 
+  // follows the saved label; set here, not in `onopen`, which can run after the user already started typing
+  $effect(() => {
+    name = bm?.label ?? '';
+  });
+
   function save() {
     if (bm && name.trim() !== (bm.label ?? '')) ctl.store.update(bm.id, { label: name.trim() || null });
   }
@@ -28,7 +33,6 @@
       placement="bottom-end"
       size="sm"
       onopen={() => {
-        name = bm.label ?? '';
         requestAnimationFrame(() => input?.focus());
       }}
       onclose={save}
