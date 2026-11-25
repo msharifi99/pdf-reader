@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // Shell + cross-screen screenshots for the design review (T16): every theme (and a custom one),
 // three window sizes, and Windows high contrast. Run on demand: SHOTS=1 npx playwright test shell-shots
