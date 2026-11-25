@@ -1,0 +1,268 @@
+/* Quire design tokens + global base. Import once at boot: `import '$lib/design/tokens.css'`.
+   Theme colour roles are written onto :root by themes.ts `applyTheme()`; the values below are the
+   Dark theme so first paint is never unstyled. See DESIGN.md for the rules. */
+@import './fonts.css';
+
+:root {
+  /* ---------- colour roles (set by applyTheme) ---------- */
+  --bg: #1b1c1f;
+  --surface: #222327;
+  --surface-2: #2a2b30;
+  --border: #34353b;
+  --text: #e8e4dc;
+  --muted: #a19d95;
+  --accent: #e2a85e;
+  --on-accent: #1b1c1f;
+  --link: #8fb8e8;
+  --selection: #3a4b66;
+  --shadow: #000000;
+  --danger: #ef8a80;
+  --success: #8cc79b;
+  --hl-yellow: #5f4c1c;
+  --hl-green: #2c4f36;
+  --hl-blue: #284563;
+  --hl-pink: #5c2f47;
+  --hl-blend: screen;
+  color-scheme: dark;
+
+  /* ---------- derived roles (never set directly) ---------- */
+  --faint: color-mix(in oklab, var(--muted) 60%, var(--bg)); /* placeholder, disabled; never body copy */
+  --hover: color-mix(in oklab, var(--text) 6%, transparent);
+  --pressed: color-mix(in oklab, var(--text) 10%, transparent);
+  --selected: color-mix(in oklab, var(--accent) 14%, transparent);
+  --accent-soft: color-mix(in oklab, var(--accent) 18%, transparent);
+  --accent-hover: color-mix(in oklab, var(--accent) 88%, var(--text));
+  --accent-pressed: color-mix(in oklab, var(--accent) 80%, var(--bg));
+  --border-soft: color-mix(in oklab, var(--border) 60%, transparent);
+  --border-strong: color-mix(in oklab, var(--text) 22%, transparent);
+  --scrim: color-mix(in oklab, var(--shadow) 42%, transparent);
+  /* chrome (title bar, toolbars, sidebars) floats over content; translucent so Mica shows through */
+  --chrome-bg: color-mix(in oklab, var(--bg) 82%, transparent);
+  --chrome-bg-solid: color-mix(in oklab, var(--surface) 94%, var(--bg));
+  --flyout-bg: var(--surface-2);
+  --track: color-mix(in oklab, var(--text) 14%, transparent);
+  --focus-ring-color: var(--accent);
+
+  /* ---------- spacing: 4px base ---------- */
+  --space-0: 0;
+  --space-px: 1px;
+  --space-0-5: 2px;
+  --space-1: 4px;
+  --space-1-5: 6px;
+  --space-2: 8px;
+  --space-2-5: 10px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  /* ---------- radii ---------- */
+  --radius-xs: 3px;   /* chips, kbd */
+  --radius-sm: 5px;   /* buttons, inputs, menu items */
+  --radius-md: 8px;   /* menus, popovers, cards, covers */
+  --radius-lg: 12px;  /* dialogs, panels */
+  --radius-full: 999px;
+
+  /* ---------- type ---------- */
+  --font-ui: 'Inter Variable', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-serif: 'Literata Variable', Georgia, serif;
+  --font-display: 'Literata Variable', Georgia, serif; /* book titles, empty states, headings in library */
+  --font-mono: 'JetBrains Mono Variable', 'Cascadia Mono', Consolas, monospace;
+  --font-reading: var(--font-serif); /* overridden by the Typography Profile */
+
+  --text-2xs: 11px;  /* kbd, badges */
+  --text-xs: 12px;   /* captions, meta, tooltips */
+  --text-sm: 13px;   /* default UI text */
+  --text-md: 14px;   /* inputs, list primary */
+  --text-lg: 16px;   /* section titles */
+  --text-xl: 20px;   /* page titles */
+  --text-2xl: 26px;  /* library greeting */
+  --text-3xl: 34px;  /* empty-state display */
+
+  --leading-tight: 1.2;
+  --leading-snug: 1.35;
+  --leading-normal: 1.5;
+  --leading-reading: 1.6;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --tracking-tight: -0.011em;
+  --tracking-caps: 0.06em;
+
+  /* ---------- elevation (shadow colour from theme; dark themes lean on borders) ---------- */
+  --shadow-1: 0 1px 2px color-mix(in oklab, var(--shadow) 14%, transparent);
+  --shadow-2: 0 1px 2px color-mix(in oklab, var(--shadow) 10%, transparent),
+    0 4px 12px color-mix(in oklab, var(--shadow) 10%, transparent);
+  --shadow-3: 0 2px 6px color-mix(in oklab, var(--shadow) 12%, transparent),
+    0 12px 32px color-mix(in oklab, var(--shadow) 16%, transparent);
+  --shadow-4: 0 4px 12px color-mix(in oklab, var(--shadow) 14%, transparent),
+    0 24px 64px color-mix(in oklab, var(--shadow) 24%, transparent);
+  --shadow-cover: 0 1px 2px color-mix(in oklab, var(--shadow) 18%, transparent),
+    0 6px 18px -6px color-mix(in oklab, var(--shadow) 28%, transparent);
+  --shadow-cover-hover: 0 2px 4px color-mix(in oklab, var(--shadow) 16%, transparent),
+    0 18px 36px -12px color-mix(in oklab, var(--shadow) 40%, transparent);
+
+  /* ---------- motion ---------- */
+  --dur-instant: 80ms;   /* press feedback */
+  --dur-fast: 120ms;     /* hover, colour */
+  --dur-base: 160ms;     /* popovers, menus, toggles */
+  --dur-slow: 200ms;     /* dialogs, sidebars, theme cross-fade */
+  --dur-chrome: 240ms;   /* chrome fade-out (fade-in uses --dur-fast) */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);       /* default: decelerate, things arriving */
+  --ease-in: cubic-bezier(0.5, 0, 0.75, 0);        /* things leaving */
+  --ease-in-out: cubic-bezier(0.45, 0, 0.25, 1);   /* moving within the screen */
+  --ease-spring: cubic-bezier(0.3, 1.3, 0.5, 1);   /* switch thumb only; tiny overshoot */
+  --chrome-hide-delay: 2000ms;
+
+  /* ---------- layers ---------- */
+  --z-base: 0;
+  --z-content-overlay: 10; /* ruler, highlights layer */
+  --z-chrome: 100;         /* title bar, toolbars, progress line */
+  --z-sidebar: 200;
+  --z-dropdown: 300;
+  --z-popover: 400;
+  --z-scrim: 500;
+  --z-modal: 600;
+  --z-toast: 700;
+  --z-tooltip: 800;
+
+  /* ---------- sizes ---------- */
+  --control-sm: 28px;
+  --control-md: 32px;
+  --control-lg: 40px;
+  --titlebar-h: 40px;
+  --sidebar-w: 300px;
+  --icon-sm: 16px;
+  --icon-md: 20px;
+  --focus-ring: 2px solid var(--focus-ring-color);
+  --focus-offset: 2px;
+  --hairline: 1px solid var(--border);
+  --scrollbar: 10px;
+}
+
+/* Reduced motion: OS setting or in-app toggle (`<html data-reduce-motion="on">`). Durations collapse,
+   state changes stay instant, and decorative loops stop. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms; --dur-fast: 0ms; --dur-base: 0ms; --dur-slow: 0ms; --dur-chrome: 0ms;
+  }
+}
+:root[data-reduce-motion='on'] {
+  --dur-instant: 0ms; --dur-fast: 0ms; --dur-base: 0ms; --dur-slow: 0ms; --dur-chrome: 0ms;
+}
+
+/* High contrast (Windows contrast themes). !important beats inline theme vars from applyTheme. */
+@media (forced-colors: active) {
+  :root {
+    --bg: Canvas !important;
+    --surface: Canvas !important;
+    --surface-2: Canvas !important;
+    --text: CanvasText !important;
+    --muted: CanvasText !important;
+    --faint: GrayText !important;
+    --border: CanvasText !important;
+    --border-soft: CanvasText !important;
+    --border-strong: CanvasText !important;
+    --accent: Highlight !important;
+    --on-accent: HighlightText !important;
+    --link: LinkText !important;
+    --selection: Highlight !important;
+    --hover: transparent !important;
+    --selected: Highlight !important;
+    --accent-soft: Highlight !important;
+    --chrome-bg: Canvas !important;
+    --flyout-bg: Canvas !important;
+    --focus-ring-color: Highlight !important;
+    --shadow-1: none; --shadow-2: none; --shadow-3: none; --shadow-4: none;
+    --shadow-cover: none; --shadow-cover-hover: none;
+  }
+}
+
+/* ---------------------------------------------------------------- base */
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; }
+html {
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  height: 100%;
+}
+body {
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden; /* app shell manages scrolling regions */
+  transition: background-color var(--dur-slow) var(--ease-out), color var(--dur-slow) var(--ease-out);
+}
+/* With Mica the webview is transparent: the native backdrop paints behind --chrome-bg. */
+:root[data-mica] body { background: transparent; }
+
+img, svg, video, canvas { display: block; max-width: 100%; }
+button, input, select, textarea { font: inherit; color: inherit; letter-spacing: inherit; }
+button { cursor: default; background: none; border: 0; padding: 0; }
+a { color: var(--link); text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+h1, h2, h3, h4 { font-weight: var(--weight-semibold); line-height: var(--leading-tight); letter-spacing: var(--tracking-tight); text-wrap: balance; }
+p { text-wrap: pretty; }
+:where(ul, ol)[role] { list-style: none; padding: 0; }
+
+::selection { background: var(--selection); color: inherit; }
+
+/* One focus ring everywhere: keyboard only. Components may move it inward with --focus-offset. */
+:focus { outline: none; }
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+  border-radius: inherit;
+}
+
+/* Scrollbars: thin, rounded thumb, transparent track, like Windows 11 overlay scrollbars. */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in oklab, var(--text) 24%, transparent) transparent; }
+*:hover { scrollbar-color: color-mix(in oklab, var(--text) 38%, transparent) transparent; }
+
+/* Theme cross-fade (View Transitions). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--dur-slow);
+  animation-timing-function: var(--ease-out);
+}
+
+/* Screen-reader only text */
+.sr-only {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+/* Tabular numbers for anything that ticks: page numbers, percentages, timers */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Chrome fade: any element with data-chrome fades when <html data-chrome-hidden> is set by the
+   shell's idle timer. Fade-out is slow and late; fade-in is quick. */
+[data-chrome] {
+  transition: opacity var(--dur-fast) var(--ease-out), translate var(--dur-fast) var(--ease-out);
+}
+:root[data-chrome-hidden] [data-chrome] {
+  opacity: 0;
+  pointer-events: none;
+  transition-duration: var(--dur-chrome);
+  transition-timing-function: var(--ease-in-out);
+}
+:root[data-chrome-hidden] [data-chrome='top'] { translate: 0 -4px; }
+:root[data-chrome-hidden] [data-chrome='bottom'] { translate: 0 4px; }
+:root[data-chrome-hidden] { cursor: none; }
+
+/* Popover API defaults reset (Tooltip, Popover, Menu use the top layer). */
+[popover] { margin: 0; padding: 0; border: 0; background: none; color: inherit; overflow: visible; inset: auto; }
