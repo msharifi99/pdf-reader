@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Quire app icon. A "Q" drawn as a gathering of folded sheets: nested leaves, each with
+       two sharp page corners; the outer sheet's corner runs on into the tail. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eeb871"/>
+      <stop offset="1" stop-color="#d8954a"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".3"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".12"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000" flood-opacity=".28"/>
+    </filter>
+  </defs>
+  <rect x="20" y="16" width="216" height="216" rx="54" fill="url(#tile)" filter="url(#shadow)"/>
+  <rect x="21" y="17" width="214" height="214" rx="53" fill="none" stroke="url(#rim)" stroke-width="2"/>
+  <g transform="translate(-7 -8)" fill="none" stroke="#1b1c1f" stroke-linejoin="miter">
+    <path d="M78 74H136A38 38 0 0 1 174 112V170H116A38 38 0 0 1 78 132Z" stroke-width="22"/>
+    <path d="M104 100H130A18 18 0 0 1 148 118V144H122A18 18 0 0 1 104 126Z" stroke-width="9"/>
+    <path d="M166 162L198 194" stroke-width="22"/>
+  </g>
+</svg>

@@ -86,12 +86,11 @@
       <span class="mark" aria-hidden="true">
         <svg viewBox="0 0 18 18" width="18" height="18"
           ><rect width="18" height="18" rx="5" fill="var(--accent)" /><path
-            d="M5.25 4.75h5.1a2.4 2.4 0 0 1 2.4 2.4v6.1H7.65a2.4 2.4 0 0 1-2.4-2.4z"
+            d="M4.75 4.75h4.6a2.6 2.6 0 0 1 2.6 2.6v4.6h-4.6a2.6 2.6 0 0 1-2.6-2.6z"
             fill="none"
             stroke="var(--on-accent)"
-            stroke-width="1.4"
-            stroke-linejoin="round"
-          /><path d="M9.6 10.4l3.15 2.85" stroke="var(--on-accent)" stroke-width="1.4" stroke-linecap="round" /></svg
+            stroke-width="1.6"
+          /><path d="M11.4 11.4l2.6 2.6" stroke="var(--on-accent)" stroke-width="1.6" /></svg
         >
       </span>
       <span class="app-name">Quire</span>
