@@ -12,7 +12,7 @@ export default defineConfig({
     target: 'chrome110',
     sourcemap: true,
     // Engine harness pages (e.g. harness/pdf.html) are built too so Playwright can reach them; set QUIRE_NO_HARNESS=1 for release builds.
-    rollupOptions: { input: { main: 'index.html', ...(process.env.QUIRE_NO_HARNESS ? {} : { 'harness-pdf': 'harness/pdf.html' }) } },
+    rollupOptions: { input: { main: 'index.html', ...(process.env.QUIRE_NO_HARNESS ? {} : { 'harness-pdf': 'harness/pdf.html', 'harness-reflow': 'harness/reflow.html', 'harness-comic': 'harness/comic.html' }) } },
   },
   test: {
     environment: 'node',

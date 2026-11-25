@@ -14,6 +14,10 @@ const FILES: Array<[string, BookFormat]> = [
   ['fb2.fb2', 'fb2'],
   ['fb2.fbz', 'fbz'],
   ['mobi.mobi', 'mobi'],
+  ['azw3.azw3', 'azw3'],
+  ['drm.mobi', 'mobi'],
+  ['corrupt.mobi', 'mobi'],
+  ['corrupt.fb2', 'fb2'],
 ];
 
 const THEMES: Record<string, Theme> = {
@@ -146,12 +150,22 @@ declare global {
       error?: { name: string; code?: string; message: string };
       tocFlat: Array<import('../src/lib/engines/types').Locator>;
       openBook: typeof openBook;
+      /** Open an arbitrary URL on a throw-away engine (error-path tests). */
+      openUrl: (url: string, format: BookFormat) => Promise<void>;
       hits: SearchHit[];
       THEMES: typeof THEMES;
     };
   }
 }
-window.__reflow = { engine: null, events, tocFlat: [], openBook, hits, THEMES };
+async function openUrl(url: string, format: BookFormat) {
+  const e = await createReflowEngine();
+  try {
+    await e.open({ kind: 'file', url, format });
+  } finally {
+    e.dispose();
+  }
+}
+window.__reflow = { engine: null, events, tocFlat: [], openBook, openUrl, hits, THEMES };
 
 for (const [name] of FILES) ($('file') as HTMLSelectElement).add(new Option(name));
 

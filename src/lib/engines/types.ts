@@ -200,6 +200,8 @@ export interface ChapterInfo {
   title: string;
   /** 0..1 progress inside this chapter, if computable. */
   fraction?: number;
+  /** Approximate word count of the whole chapter (reflow), for time-left estimates. */
+  words?: number;
 }
 
 export interface Progress {
@@ -406,6 +408,8 @@ export interface EngineEventMap {
   footnote: { html: string; rect: Rect; target?: Locator };
   /** A page/spread was clicked or tapped without selecting text (the shell uses it for tap zones and chrome toggling). */
   pointer: { x: number; y: number; zone: 'left' | 'right' | 'center'; button: number };
+  /** A drawn decoration (e.g. an annotation highlight) was clicked: show its popover. */
+  decorationclick: { layer: DecorationLayer; id: string; rect: Rect };
   /** Non-fatal problem (a page failed to render, a section could not be parsed). */
   warning: EngineError;
 }
@@ -499,6 +503,8 @@ export type EngineErrorCode =
   | 'corrupt'
   | 'password-required'
   | 'password-cancelled'
+  /** Encrypted by a DRM scheme we cannot (and will not) open. */
+  | 'drm'
   | 'aborted'
   | 'not-rendered'
   | 'network'
