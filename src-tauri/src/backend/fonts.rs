@@ -1,4 +1,4 @@
-//! Installed font families (DirectWrite), deduped and sorted; computed once.
+//! Installed font families (DirectWrite on Windows, fontconfig on Linux), deduped and sorted; computed once.
 use std::sync::OnceLock;
 
 static FONTS: OnceLock<Vec<String>> = OnceLock::new();
@@ -36,7 +36,19 @@ fn load() -> Vec<String> {
     out
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+fn load() -> Vec<String> {
+    // fontconfig ships with every GTK desktop; first family name of each installed face
+    let out = std::process::Command::new("fc-list").args(["--format", "%{family[0]}\n"]).output();
+    let mut v: Vec<String> = out
+        .map(|o| String::from_utf8_lossy(&o.stdout).lines().map(str::trim).filter(|l| !l.is_empty()).map(String::from).collect())
+        .unwrap_or_default();
+    v.sort_by_key(|s| s.to_lowercase());
+    v.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+    v
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 fn load() -> Vec<String> {
     vec![]
 }

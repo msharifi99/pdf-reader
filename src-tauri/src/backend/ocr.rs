@@ -1,5 +1,5 @@
-//! OCR through the Windows built-in engine (`Windows.Media.Ocr`): offline, no download, uses the
-//! language packs installed in Windows. Page bitmaps come from the frontend (rendered by the PDF
+//! OCR through the Windows built-in engine (`Windows.Media.Ocr`, using the language packs installed in
+//! Windows) or, on Linux, the system Tesseract; offline either way. Page bitmaps come from the frontend (rendered by the PDF
 //! Engine); words come back with boxes normalised 0..1 to the page and are cached in `ocr_pages`,
 //! so a book is only ever OCR'd once.
 
@@ -199,11 +199,102 @@ mod win {
     }
 }
 
-/// Languages Windows can recognise right now (empty when none is installed).
+/// Linux: the `tesseract` CLI (Fedora `tesseract` + `tesseract-langpack-*`, Debian `tesseract-ocr-*`), fed a
+/// grayscale PNG on stdin. Tags are Tesseract's own codes (`eng`, `deu`), which round-trip as `lang`.
+#[cfg(target_os = "linux")]
+mod tess {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
+    use super::*;
+
+    const NAMES: &[(&str, &str, &str)] = &[
+        ("eng", "en", "English"), ("deu", "de", "German"), ("fra", "fr", "French"), ("spa", "es", "Spanish"),
+        ("ita", "it", "Italian"), ("por", "pt", "Portuguese"), ("nld", "nl", "Dutch"), ("swe", "sv", "Swedish"),
+        ("pol", "pl", "Polish"), ("ces", "cs", "Czech"), ("rus", "ru", "Russian"), ("ukr", "uk", "Ukrainian"),
+        ("tur", "tr", "Turkish"), ("ell", "el", "Greek"), ("ara", "ar", "Arabic"), ("fas", "fa", "Persian"),
+        ("heb", "he", "Hebrew"), ("hin", "hi", "Hindi"), ("jpn", "ja", "Japanese"), ("kor", "ko", "Korean"),
+        ("chi_sim", "zh", "Chinese (Simplified)"), ("chi_tra", "zh", "Chinese (Traditional)"),
+    ];
+
+    fn missing() -> Error {
+        Error::new(ErrorCode::Unsupported, "Text recognition needs Tesseract. Install it with your package manager (Fedora: sudo dnf install tesseract).")
+    }
+
+    fn installed() -> Res<Vec<String>> {
+        let out = Command::new("tesseract").arg("--list-langs").output().map_err(|_| missing())?;
+        // Tesseract 3 lists on stderr, 4+ on stdout; the header line has spaces, codes never do.
+        let text = [out.stdout, out.stderr].concat();
+        Ok(String::from_utf8_lossy(&text).lines().map(str::trim).filter(|l| !l.is_empty() && !l.contains(' ') && *l != "osd" && *l != "equ").map(String::from).collect())
+    }
+
+    fn default_of(all: &[String]) -> Option<String> {
+        let sys: String = std::env::var("LANG").unwrap_or_default().chars().take(2).collect();
+        let has = |c: &str| all.iter().any(|a| a == c);
+        NAMES.iter().find(|n| n.1 == sys && has(n.0)).map(|n| n.0).or(has("eng").then_some("eng")).map(String::from).or_else(|| all.first().cloned())
+    }
+
+    pub fn languages() -> Res<Vec<OcrLanguage>> {
+        let Ok(all) = installed() else { return Ok(vec![]) };
+        let def = default_of(&all);
+        Ok(all
+            .iter()
+            .map(|t| OcrLanguage { name: NAMES.iter().find(|n| n.0 == t).map_or_else(|| t.clone(), |n| n.2.to_string()), default: def.as_deref() == Some(t.as_str()), tag: t.clone() })
+            .collect())
+    }
+
+    pub fn recognize(rgba: &[u8], width: u32, height: u32, lang: Option<&str>) -> Res<(Vec<OcrWordN>, String)> {
+        let all = installed()?;
+        let tag = lang
+            .filter(|l| all.iter().any(|a| a == l))
+            .map(String::from)
+            .or_else(|| default_of(&all))
+            .ok_or_else(|| Error::new(ErrorCode::Unsupported, "Tesseract has no language installed (Fedora: sudo dnf install tesseract-langpack-eng)."))?;
+        let img = image::RgbaImage::from_raw(width, height, rgba.to_vec()).ok_or_else(|| Error::invalid("That page image couldn't be read."))?;
+        let mut png = vec![];
+        image::DynamicImage::ImageRgba8(img).into_luma8().write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).map_err(|e| Error::invalid(format!("That page image couldn't be prepared ({e}).")))?;
+        let mut child = Command::new("tesseract")
+            .args(["stdin", "stdout", "-l", &tag, "tsv"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|_| missing())?;
+        // tesseract reads the whole image before writing anything, so writing first cannot deadlock
+        child.stdin.take().expect("piped").write_all(&png)?;
+        let out = child.wait_with_output()?;
+        if !out.status.success() {
+            let why = String::from_utf8_lossy(&out.stderr).lines().last().unwrap_or("").trim().to_string();
+            return Err(Error::new(ErrorCode::Unsupported, format!("Tesseract couldn't read the page ({why}).")));
+        }
+        Ok((parse_tsv(&String::from_utf8_lossy(&out.stdout), width as f64, height as f64), tag))
+    }
+}
+
+/// Words (TSV level 5) from `tesseract ... tsv` output, boxes normalised to the image.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn parse_tsv(tsv: &str, w: f64, h: f64) -> Vec<OcrWordN> {
+    let r4 = |v: f64| (v * 10_000.0).round() / 10_000.0;
+    tsv.lines()
+        .filter_map(|l| {
+            let c: Vec<&str> = l.splitn(12, '\t').collect();
+            let text = c.get(11)?.trim();
+            if c[0] != "5" || text.is_empty() {
+                return None;
+            }
+            let n = |i: usize| c[i].parse::<f64>().ok();
+            Some(OcrWordN { text: text.to_string(), x: r4(n(6)? / w), y: r4(n(7)? / h), width: r4(n(8)? / w), height: r4(n(9)? / h) })
+        })
+        .collect()
+}
+
+/// Languages the OS recogniser can use right now (empty when none is installed).
 pub fn languages() -> Res<Vec<OcrLanguage>> {
     #[cfg(windows)]
     return win::languages();
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    return tess::languages();
+    #[cfg(not(any(windows, target_os = "linux")))]
     Ok(vec![])
 }
 
@@ -212,10 +303,30 @@ pub fn recognize(bytes: &[u8], width: u32, height: u32, lang: Option<&str>) -> R
     let (rgba, w, h) = decode_pixels(bytes, width, height)?;
     #[cfg(windows)]
     return win::recognize(&rgba, w, h, lang);
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    return tess::recognize(&rgba, w, h, lang);
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         let _ = (rgba, w, h, lang);
-        Err(Error::new(ErrorCode::Unsupported, "Text recognition needs Windows."))
+        Err(Error::new(ErrorCode::Unsupported, "Text recognition isn't available on this system yet."))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tsv_words_are_normalised_and_non_words_skipped() {
+        let tsv = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n\
+                   1\t1\t0\t0\t0\t0\t0\t0\t200\t100\t-1\t\n\
+                   5\t1\t1\t1\t1\t1\t20\t10\t50\t20\t96.5\tHello\n\
+                   5\t1\t1\t1\t1\t2\t80\t10\t60\t20\t91\t   \n\
+                   5\t1\t1\t1\t1\t3\t150\t10\t40\t20\t90\twor ld\n";
+        let w = parse_tsv(tsv, 200.0, 100.0);
+        assert_eq!(w.len(), 2);
+        assert_eq!(w[0], OcrWordN { text: "Hello".into(), x: 0.1, y: 0.1, width: 0.25, height: 0.2 });
+        assert_eq!(w[1].text, "wor ld");
     }
 }
 

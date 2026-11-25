@@ -29,18 +29,18 @@
     ],
     "security": {
       "dangerousDisableAssetCspModification": ["style-src"],
-      "csp": "default-src 'self' http://quire.localhost; script-src 'self' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: blob: http://quire.localhost; media-src 'self' blob: data: http://quire.localhost; font-src 'self' data: blob: http://quire.localhost; frame-src 'self' blob: data: http://quire.localhost; connect-src 'self' ipc: http://ipc.localhost http://quire.localhost data: blob: https://*.wikipedia.org; object-src 'none'; base-uri 'self'",
-      "devCsp": "default-src 'self' http://quire.localhost; script-src 'self' 'wasm-unsafe-eval' blob: 'unsafe-inline'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: blob: http://quire.localhost; media-src 'self' blob: data: http://quire.localhost; font-src 'self' data: blob: http://quire.localhost; frame-src 'self' blob: data: http://quire.localhost; connect-src 'self' ipc: http://ipc.localhost http://quire.localhost data: blob: ws://localhost:1420 http://localhost:1420 https://*.wikipedia.org; object-src 'none'; base-uri 'self'",
+      "csp": "default-src 'self' http://quire.localhost quire://localhost; script-src 'self' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: blob: http://quire.localhost quire://localhost; media-src 'self' blob: data: http://quire.localhost quire://localhost; font-src 'self' data: blob: http://quire.localhost quire://localhost; frame-src 'self' blob: data: http://quire.localhost quire://localhost; connect-src 'self' ipc: http://ipc.localhost http://quire.localhost quire://localhost data: blob: https://*.wikipedia.org; object-src 'none'; base-uri 'self'",
+      "devCsp": "default-src 'self' http://quire.localhost quire://localhost; script-src 'self' 'wasm-unsafe-eval' blob: 'unsafe-inline'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: blob: http://quire.localhost quire://localhost; media-src 'self' blob: data: http://quire.localhost quire://localhost; font-src 'self' data: blob: http://quire.localhost quire://localhost; frame-src 'self' blob: data: http://quire.localhost quire://localhost; connect-src 'self' ipc: http://ipc.localhost http://quire.localhost quire://localhost data: blob: ws://localhost:1420 http://localhost:1420 https://*.wikipedia.org; object-src 'none'; base-uri 'self'",
       "assetProtocol": { "enable": false }
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": ["nsis", "app", "dmg", "appimage", "deb", "rpm"],
     "shortDescription": "Quire",
     "longDescription": "A calm, fast reader for books, PDFs and comics.",
     "resources": ["resources/dictionary.sqlite"],
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "windows": {
       "nsis": {
         "installMode": "currentUser",

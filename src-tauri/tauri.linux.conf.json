@@ -1,0 +1,53 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Quire",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 720,
+        "minHeight": 480,
+        "decorations": false,
+        "transparent": false,
+        "shadow": true,
+        "resizable": true,
+        "center": true,
+        "dragDropEnabled": true
+      }
+    ]
+  },
+  "bundle": {
+    "category": "Productivity",
+    "fileAssociations": [
+      { "ext": ["pdf"], "name": "PDF document", "mimeType": "application/pdf" },
+      { "ext": ["epub"], "name": "EPUB book", "mimeType": "application/epub+zip" },
+      { "ext": ["mobi", "azw"], "name": "Mobipocket book", "mimeType": "application/x-mobipocket-ebook" },
+      { "ext": ["azw3"], "name": "Kindle book (AZW3)", "mimeType": "application/vnd.amazon.mobi8-ebook" },
+      { "ext": ["fb2"], "name": "FictionBook", "mimeType": "application/x-fictionbook+xml" },
+      { "ext": ["fbz"], "name": "FictionBook archive", "mimeType": "application/x-zip-compressed-fb2" },
+      { "ext": ["cbz"], "name": "Comic book archive (CBZ)", "mimeType": "application/vnd.comicbook+zip" },
+      { "ext": ["cbr"], "name": "Comic book archive (CBR)", "mimeType": "application/vnd.comicbook-rar" },
+      { "ext": ["png"], "name": "PNG image", "mimeType": "image/png" },
+      { "ext": ["jpg", "jpeg"], "name": "JPEG image", "mimeType": "image/jpeg" },
+      { "ext": ["webp"], "name": "WebP image", "mimeType": "image/webp" },
+      { "ext": ["avif"], "name": "AVIF image", "mimeType": "image/avif" },
+      { "ext": ["gif"], "name": "GIF image", "mimeType": "image/gif" },
+      { "ext": ["bmp"], "name": "Bitmap image", "mimeType": "image/bmp" },
+      { "ext": ["tif", "tiff"], "name": "TIFF image", "mimeType": "image/tiff" },
+      { "ext": ["svg"], "name": "SVG image", "mimeType": "image/svg+xml" }
+    ],
+    "linux": {
+      "rpm": {
+        "depends": ["webkit2gtk4.1", "gtk3", "fontconfig"],
+        "recommends": ["tesseract", "tesseract-langpack-eng"],
+        "desktopTemplate": "linux/quire.desktop"
+      },
+      "deb": {
+        "recommends": ["tesseract-ocr", "tesseract-ocr-eng"],
+        "desktopTemplate": "linux/quire.desktop"
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name={{name}}
+GenericName=E-book Reader
+Comment=A calm, fast reader for books, PDFs and comics
+Categories={{categories}}Viewer;
+Keywords=ebook;epub;pdf;comic;cbz;reader;
+Exec={{exec}} %F
+StartupWMClass={{exec}}
+Icon={{icon}}
+Terminal=false
+{{#if mime_type}}
+MimeType={{mime_type}};
+{{/if}}

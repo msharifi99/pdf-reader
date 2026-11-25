@@ -682,7 +682,7 @@ fn row_to_book(r: &Row) -> rusqlite::Result<Book> {
     let settings: String = r.get(14)?;
     let fmt: String = r.get(2)?;
     Ok(Book {
-        cover_url: cover.map(|_| format!("http://quire.localhost/cover/{id}?v={rev}")),
+        cover_url: cover.map(|_| format!("{QUIRE_ORIGIN}/cover/{id}?v={rev}")),
         id,
         fingerprint: r.get(1)?,
         format: Format::parse(&fmt).unwrap_or(Format::Pdf),

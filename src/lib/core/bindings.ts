@@ -173,7 +173,7 @@ export type Book = {
 	format: Format,
 	title: string,
 	author: string,
-	/**  `http://quire.localhost/cover/<id>?v=<rev>`; absent until a cover exists. */
+	/**  `<QUIRE_ORIGIN>/cover/<id>?v=<rev>`; absent until a cover exists. */
 	coverUrl: string | null,
 	/**  True when no cover is stored yet; the frontend should render one and call `save_cover`. */
 	needsCover: boolean,

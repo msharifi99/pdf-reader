@@ -1,6 +1,6 @@
 //! `quire://` custom scheme: serves allow-listed files with HTTP Range support.
 //!
-//! URL format (Windows / WebView2 rewrites custom schemes to http):
+//! URL format (origin is `QUIRE_ORIGIN`: `http://quire.localhost` on Windows/Android, `quire://localhost` elsewhere):
 //!   `http://quire.localhost/file?path=<percent-encoded absolute path>`
 //!   `http://quire.localhost/book/<id>`   (resolved through `resolve_book`, wired by T4)
 //!

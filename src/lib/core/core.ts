@@ -90,8 +90,8 @@ export const raw: RawApi = {
 
 /**
  * URL for a document.
- * Tauri/Windows: `http://quire.localhost/file?path=<encoded>` or `/book/<id>`
- * (WebView2 serves the `quire` scheme as http://quire.localhost). Fake: `/fixtures/<name>`.
+ * Tauri: `<origin>/file?path=<encoded>` or `<origin>/book/<id>`, where the origin is
+ * `http://quire.localhost` on WebView2/Android and `quire://localhost` on WebKit. Fake: `/fixtures/<name>`.
  */
 export function fileUrl(ref: FileRef): string {
   return current().fileUrl(ref);
@@ -99,12 +99,15 @@ export function fileUrl(ref: FileRef): string {
 
 /** Cover URL for a book id (`Book.coverUrl` is already set on every Book; use this when you only have an id). */
 export function coverUrl(bookId: string, rev = 0): string {
-  return current().mode === 'tauri' ? `http://quire.localhost/cover/${encodeURIComponent(bookId)}?v=${rev}` : `/fixtures/covers/${bookId}.webp`;
+  return current().mode === 'tauri' ? `${quireOrigin}/cover/${encodeURIComponent(bookId)}?v=${rev}` : `/fixtures/covers/${bookId}.webp`;
 }
 
 export function coreMode(): 'tauri' | 'fake' {
   return current().mode;
 }
+
+/** `quire` scheme origin, set in initCore from Tauri's own scheme mapping. */
+let quireOrigin = 'http://quire.localhost';
 
 export const isTauri = (): boolean => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -118,6 +121,7 @@ export async function initCore(): Promise<CoreRuntime> {
   if (runtime) return runtime;
   if (isTauri()) {
     const { commands, events } = await import('./bindings');
+    quireOrigin = (await import('@tauri-apps/api/core')).convertFileSrc('', 'quire').replace(/\/$/, '');
     runtime = {
       mode: 'tauri',
       api: commands,
@@ -148,8 +152,8 @@ export async function initCore(): Promise<CoreRuntime> {
       },
       fileUrl: (ref) =>
         'path' in ref
-          ? `http://quire.localhost/file?path=${encodeURIComponent(ref.path)}`
-          : `http://quire.localhost/book/${encodeURIComponent(ref.bookId)}`,
+          ? `${quireOrigin}/file?path=${encodeURIComponent(ref.path)}`
+          : `${quireOrigin}/book/${encodeURIComponent(ref.bookId)}`,
     };
   } else {
     runtime = (await import('./fake-core')).createFakeRuntime();

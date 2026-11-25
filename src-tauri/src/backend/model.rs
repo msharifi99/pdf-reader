@@ -2,6 +2,9 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+/// Origin of the `quire` scheme: WebView2 and Android webviews rewrite custom schemes to http, WebKit keeps them.
+pub const QUIRE_ORIGIN: &str = if cfg!(any(windows, target_os = "android")) { "http://quire.localhost" } else { "quire://localhost" };
+
 /// Arbitrary JSON (locators, anchors, settings). `unknown` on the TS side; callers cast.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Type, PartialEq)]
 #[serde(transparent)]
@@ -82,7 +85,7 @@ pub struct Book {
     pub format: Format,
     pub title: String,
     pub author: String,
-    /// `http://quire.localhost/cover/<id>?v=<rev>`; absent until a cover exists.
+    /// `<QUIRE_ORIGIN>/cover/<id>?v=<rev>`; absent until a cover exists.
     pub cover_url: Option<String>,
     /// True when no cover is stored yet; the frontend should render one and call `save_cover`.
     pub needs_cover: bool,
