@@ -37,6 +37,7 @@ base64 = "0.22"
 notify-debouncer-full = "0.5"
 uuid = { version = "1", features = ["v4"] }
 walkdir = "2"
+unicode-normalization = "0.1"
 
 [target.'cfg(windows)'.dependencies]
 window-vibrancy = "0.8"

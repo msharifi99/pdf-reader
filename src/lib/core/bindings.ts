@@ -76,6 +76,10 @@ export const commands = {
 	rescanWatchedFolders: (options?: InvokeOptions) => __TAURI_INVOKE<null>("rescan_watched_folders", undefined, options),
 	listSystemFonts: (options?: InvokeOptions) => __TAURI_INVOKE<string[]>("list_system_fonts", undefined, options),
 	searchLibraryText: (query: string, limit: number, options?: InvokeOptions) => __TAURI_INVOKE<TextHit[]>("search_library_text", { query, limit }, options),
+	/**  Look a word or phrase up. `null` when the dictionary has nothing for it. */
+	lookupWord: (word: string, options?: InvokeOptions) => __TAURI_INVOKE<DictResult | null>("lookup_word", { word }, options),
+	/**  Headwords starting with `prefix`, most common first. */
+	suggestWords: (prefix: string, limit: number, options?: InvokeOptions) => __TAURI_INVOKE<string[]>("suggest_words", { prefix, limit }, options),
 	backup: (destPath: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("backup", { destPath }, options),
 	/**  Replaces library data from a `.quire-backup`; emits `backup-restored` (reload the UI). */
 	restore: (srcPath: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("restore", { srcPath }, options),
@@ -191,6 +195,28 @@ export type Collection = {
 	id: string,
 	name: string,
 	count: number,
+};
+
+export type DictDefinition = {
+	text: string,
+	examples: string[],
+};
+
+export type DictEntry = {
+	/**  The dictionary headword this entry belongs to (differs from the result's `lemma` for e.g. "better" -> "good" + "better"). */
+	lemma: string,
+	/**  "noun" | "verb" | "adjective" | "adverb" */
+	pos: string,
+	definitions: DictDefinition[],
+	synonyms: string[],
+};
+
+export type DictResult = {
+	/**  Base form of the looked-up word ("running" -> "run"). */
+	lemma: string,
+	/**  The folded form that was looked up (lower-case, no diacritics). */
+	form: string,
+	entries: DictEntry[],
 };
 
 export type Error = {

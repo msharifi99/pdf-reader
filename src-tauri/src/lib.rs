@@ -1,4 +1,5 @@
 pub mod backend;
+pub mod dictionary;
 mod commands;
 pub mod protocol;
 mod window;
@@ -74,6 +75,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             bc::rescan_watched_folders,
             bc::list_system_fonts,
             bc::search_library_text,
+            dictionary::lookup_word,
+            dictionary::suggest_words,
             bc::backup,
             bc::restore,
             index::index_book_chunks,
@@ -137,6 +140,13 @@ pub fn run() {
         .setup(move |app| {
             builder.mount_events(app);
             let handle = app.handle();
+            app.manage(dictionary::Dictionary::new(dictionary_path(handle)));
+            #[cfg(debug_assertions)]
+            {
+                let t = std::time::Instant::now();
+                let r = app.state::<dictionary::Dictionary>().lookup("running");
+                eprintln!("[dictionary] self-test \"running\" -> {:?} in {:?}", r.ok().flatten().map(|d| d.lemma), t.elapsed());
+            }
             let data_dir = app.path().app_data_dir().expect("no app data dir");
             let h = handle.clone();
             let emit: backend::Emitter = std::sync::Arc::new(move |e| {
@@ -177,4 +187,13 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running Quire");
+}
+
+/// The bundled dictionary: the Tauri resource dir when installed, the source tree in dev.
+fn dictionary_path(app: &AppHandle) -> std::path::PathBuf {
+    use tauri::path::BaseDirectory;
+    let dev = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/dictionary.sqlite");
+    let p = app.path().resolve("resources/dictionary.sqlite", BaseDirectory::Resource).ok().filter(|p| p.exists()).unwrap_or(dev);
+    eprintln!("[dictionary] using {}", p.display());
+    p
 }

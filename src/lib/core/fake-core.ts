@@ -40,6 +40,13 @@ interface ManifestEntry {
   collections?: string[];
 }
 
+const FAKE_DICTIONARY: Record<string, { pos: string; text: string; examples: string[]; synonyms: string[] }> = {
+  run: { pos: 'verb', text: 'move fast by using one\'s feet', examples: ['She runs every morning'], synonyms: ['jog', 'sprint'] },
+  goose: { pos: 'noun', text: 'a large waterbird with a long neck', examples: [], synonyms: [] },
+  good: { pos: 'adjective', text: 'having desirable or positive qualities', examples: ['a good book'], synonyms: ['fine'] },
+  book: { pos: 'noun', text: 'a written work bound together', examples: [], synonyms: ['volume'] },
+};
+
 export function createFakeRuntime(): CoreRuntime {
   const openFiles: Listener<string[]> = new Set();
   const maxHover: Listener<boolean> = new Set();
@@ -431,6 +438,15 @@ export function createFakeRuntime(): CoreRuntime {
       }
       return null;
     },
+
+    // ---- dictionary (a tiny stand-in for the WordNet db) ----
+    lookupWord: async (word) => {
+      const k = word.trim().toLowerCase();
+      const lemma = ({ running: 'run', ran: 'run', geese: 'goose', better: 'good' } as Record<string, string>)[k] ?? k;
+      const def = FAKE_DICTIONARY[lemma];
+      return def ? { lemma, form: k, entries: [{ lemma, pos: def.pos, definitions: [{ text: def.text, examples: def.examples }], synonyms: def.synonyms }] } : null;
+    },
+    suggestWords: async (prefix, limit) => Object.keys(FAKE_DICTIONARY).filter((w) => w.startsWith(prefix.trim().toLowerCase())).slice(0, limit),
 
     // ---- OCR ----
     ocrLanguages: async () => [{ tag: 'en-US', name: 'English (United States)', default: true }],
