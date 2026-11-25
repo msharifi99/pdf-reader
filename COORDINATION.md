@@ -54,23 +54,23 @@ Conventions
 
 | ID | Task | Model | Depends | Status |
 |----|------|-------|---------|--------|
-| T1 | Scaffold Tauri 2 + Svelte 5 + Vite, window shell (frameless, Mica, snap), `quire://` protocol, single-instance + file-open routing, contract plumbing (specta), engine types, sniffing, fake core skeleton, vitest + Playwright config | sonnet | — | todo |
-| T2 | Design system: tokens, 5 themes + custom theme model, typography scale, bundled fonts, motion, base UI components, icon set | opus | — | todo |
+| T1 | Scaffold Tauri 2 + Svelte 5 + Vite, window shell (frameless, Mica, snap), `quire://` protocol, single-instance + file-open routing, contract plumbing (specta), engine types, sniffing, fake core skeleton, vitest + Playwright config | sonnet | — | done |
+| T2 | Design system: tokens, 5 themes + custom theme model, typography scale, bundled fonts, motion, base UI components, icon set | opus | — | done |
 | T3 | Command registry, Keymap (contexts, chords, sequences, multi-binding, user diff, conflicts), fuzzy scorer, default bindings, unit tests | sonnet | — | done (5a3bb4e, 81 tests verified) |
-| T4 | Rust core: SQLite schema + migrations, books/collections/progress/annotations/settings/sessions commands, fingerprint + re-link, watched folders, covers cache, backup/restore, system fonts; fake core parity; Rust tests | sonnet | T1 | todo |
-| T5 | App shell UI: title bar, library/reader routing, chrome auto-hide, palette UI (> @ # /), cheat-sheet, toasts, settings screen, theme cross-fade, follow-Windows theme | opus | T1 T2 T3 | todo |
-| T6 | PDF Engine: virtualised pages, worker render, LRU cache, text + annotation + link layers, outline, password, zoom/fit/rotate, Page Tint (Smart/Invert/Original), thumbnails, search, anchors | sonnet | T1 | todo |
-| T7 | Library UI: covers grid/list, continue reading, sort/filter, collections, edit metadata, keyboard nav, drag-drop, missing files | opus | T4 T5 | todo |
-| T8 | Reader shell UI: TOC/thumbnails sidebars, progress line, time-left, go-to, history, find bar + results, zoom/fit controls, focus mode, ruler, auto-scroll, two-page spread, typography panel | opus | T5 T6 | todo |
-| T9 | Reflow Engine (foliate-js): EPUB/MOBI/AZW3/FB2, paginated/scrolled, typography stylesheet, override publisher styles, footnote popups, search, anchors | sonnet | T1 | todo |
-| T10 | Comic & Image Engine: CBZ, CBR (libarchive.js), images/folders (Rust listing), single/double/webtoon, RTL, spread detection, preload, Page Tint | sonnet | T1 T4 | todo |
-| T11 | Annotations: highlight/note/bookmark across engines, floating menu, panel, undo, Markdown export, quote copy, library-wide highlights view; shortcuts editor UI | sonnet + opus UI review | T6 T8 T9 | todo |
-| T12 | Search: in-book search plumbing, background indexing into FTS5, library-wide search UI, OCR via Windows.Media.Ocr + synthetic text layer | sonnet | T4 T6 T9 | todo |
-| T13 | Read-aloud (speechSynthesis + word highlight + auto page turn), offline dictionary (WordNet SQLite), Wikipedia summary | sonnet | T8 T9 | todo |
-| T14 | Installer: NSIS per-user, file associations (Open with), icons, Start menu, window-state, session restore, multi-window | sonnet | T5 | todo |
-| T15 | Fixtures corpus + Playwright E2E suite + visual baselines + perf scripts | sonnet | most | todo |
-| T16 | Visual/taste review pass across every screen and theme | opus | T7 T8 | todo |
-| T17 | Performance pass against the budget | sonnet | all | todo |
+| T4 | Rust core: SQLite schema + migrations, books/collections/progress/annotations/settings/sessions commands, fingerprint + re-link, watched folders, covers cache, backup/restore, system fonts; fake core parity; Rust tests | sonnet | T1 | done |
+| T5 | App shell UI: title bar, library/reader routing, chrome auto-hide, palette UI (> @ # /), cheat-sheet, toasts, settings screen, theme cross-fade, follow-Windows theme | opus | T1 T2 T3 | done |
+| T6 | PDF Engine: virtualised pages, worker render, LRU cache, text + annotation + link layers, outline, password, zoom/fit/rotate, Page Tint (Smart/Invert/Original), thumbnails, search, anchors | sonnet | T1 | done |
+| T7 | Library UI: covers grid/list, continue reading, sort/filter, collections, edit metadata, keyboard nav, drag-drop, missing files | opus | T4 T5 | done |
+| T8 | Reader shell UI: TOC/thumbnails sidebars, progress line, time-left, go-to, history, find bar + results, zoom/fit controls, focus mode, ruler, auto-scroll, two-page spread, typography panel | opus | T5 T6 | done |
+| T9 | Reflow Engine (foliate-js): EPUB/MOBI/AZW3/FB2, paginated/scrolled, typography stylesheet, override publisher styles, footnote popups, search, anchors | sonnet | T1 | done |
+| T10 | Comic & Image Engine: CBZ, CBR (libarchive.js), images/folders (Rust listing), single/double/webtoon, RTL, spread detection, preload, Page Tint | sonnet | T1 T4 | done |
+| T11 | Annotations: highlight/note/bookmark across engines, floating menu, panel, undo, Markdown export, quote copy, library-wide highlights view; shortcuts editor UI | sonnet + opus UI review | T6 T8 T9 | done |
+| T12 | Search: in-book search plumbing, background indexing into FTS5, library-wide search UI, OCR via Windows.Media.Ocr + synthetic text layer | sonnet | T4 T6 T9 | done |
+| T13 | Read-aloud (speechSynthesis + word highlight + auto page turn), offline dictionary (WordNet SQLite), Wikipedia summary | sonnet | T8 T9 | done |
+| T14 | Installer: NSIS per-user, file associations (Open with), icons, Start menu, window-state, session restore, multi-window | sonnet | T5 | done |
+| T15 | Fixtures corpus + Playwright E2E suite + visual baselines + perf scripts | sonnet | most | done |
+| T16 | Visual/taste review pass across every screen and theme | opus | T7 T8 | done |
+| T17 | Performance pass against the budget | sonnet | all | done |
 
 ## Log
 - 2026-11-25: Rust not installed; installing rustup via winget (user approved). MSVC (VS 2022 BuildTools) and WebView2 158 present. Node 24, npm 11, pnpm 12.
@@ -109,3 +109,5 @@ Conventions
 - T16 done (d36a0b6, f70e3f7, 6b35bad): panels resize the reading area, quiet PDF bars, theme cross-fade includes the book, forced-colors fixes, real-window scrollbar fix, restoreSession toggle in settings, REVIEW.md + before/after shots reviewed by coordinator. Forwarded to reliability: ghost book after failed open, missing file → "damaged", EPUB cover alone in spread. docs/design is ~56 MB (consider pruning shots from the repo).
 - T15 reliability done (1fb1d73, 6890f11, bd6c439 +): reopen root cause = paginator range starting on collapsed whitespace at a line wrap (fixed; 160/160 at repeat-each 20); settings sync across windows; maximized normal bounds; global undo; restore_book; no ghost books; NotFound end to end; flush handshake on close; synchronous=FULL; uncaught-error test guard. Coordinator verified: clippy clean, cargo tests, check 0, vitest 267, Playwright 186 passed / 0 failed.
 - T17 perf + release pass (sonnet) launched.
+- T17 done: cold start ~440 ms, 2,000-page PDF first page 160 ms (fixed real-app bug mounting all pages), idle memory 100–151 MB private (PDF borderline), installer 14.8 MB with dictionary. Install/uninstall smoke test clean; user data restored.
+- FINAL (coordinator): clippy clean, 39 Rust tests, svelte-check 0, vitest 267, vite build OK, Playwright 186 passed / 0 failed. Working tree clean.
