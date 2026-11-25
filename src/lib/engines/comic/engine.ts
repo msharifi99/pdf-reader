@@ -3,6 +3,7 @@
  * Pages decode with createImageBitmap into a byte-bounded LRU, the next three pages and one behind
  * are preloaded, and a page turn from cache draws synchronously.
  */
+import { cacheBudget, HIDDEN_KEEP, onHidden } from '../memory';
 import {
   EngineError,
   type Anchor,
@@ -51,7 +52,7 @@ import { openSource, type PageSource } from './sources';
 import { WebtoonView } from './webtoon';
 
 /** Decoded-bitmap budget (RGBA bytes). ~40 typical pages. */
-const CACHE_BYTES = 320 * 1024 * 1024;
+const CACHE_BYTES = cacheBudget(320, 20, 96);
 
 const DEFAULT_THEME: Theme = {
   id: 'comic-default',
@@ -103,6 +104,7 @@ export class ComicEngine implements Engine {
   private chapters: { title: string; page: number }[] = [];
   private dimsArr: (Size | undefined)[] = [];
   private readonly cache = new ByteLru<number, ImageBitmap>(CACHE_BYTES, (_k, b) => b.close());
+  private readonly offHidden = onHidden(() => this.cache.trim(HIDDEN_KEEP));
   private readonly inflight = new Map<number, Promise<ImageBitmap>>();
   private readonly warned = new Set<number>();
   private readonly ocr = new Map<number, OcrWord[]>();
@@ -786,6 +788,7 @@ export class ComicEngine implements Engine {
     if (this.disposed) return;
     this.disposed = true;
     this.teardownView();
+    this.offHidden();
     this.cache.clear();
     this.inflight.clear();
     this.painter.dispose();

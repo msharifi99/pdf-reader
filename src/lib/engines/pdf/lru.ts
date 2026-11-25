@@ -51,6 +51,15 @@ export class ByteLru<K, V> {
   deleteWhere(pred: (key: K) => boolean): void {
     for (const k of [...this.map.keys()]) if (pred(k)) this.delete(k);
   }
+  /** Evict oldest entries until at most `bytes` remain (e.g. when the window is hidden). */
+  trim(bytes: number): void {
+    for (const [k, e] of this.map) {
+      if (this.total <= bytes) break;
+      this.map.delete(k);
+      this.total -= e.cost;
+      this.onEvict?.(k, e.value);
+    }
+  }
   clear(): void {
     for (const k of [...this.map.keys()]) this.delete(k);
   }

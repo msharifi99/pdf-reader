@@ -1,4 +1,5 @@
 import './globals';
+import { cacheBudget, HIDDEN_KEEP, onHidden } from '../memory';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import type { PDFPageProxy, PageViewport } from 'pdfjs-dist';
 import { AnnotationLayerBuilder, EventBus, PDFLinkService, TextLayerBuilder } from 'pdfjs-dist/web/pdf_viewer.mjs';
@@ -18,7 +19,9 @@ import { GlTinter, INVERT_FILTER, parseCssColor, smartTintImageData, type NormRe
 import { fuzzyFind, makeQuote, quadsFor, rangeForQuads } from './textindex';
 
 const PAD = 16; // space around the page column when fitting
-const BITMAP_BUDGET = 300 * 1024 * 1024;
+/** What the bitmap cache keeps once the reader has been still for a while. */
+const IDLE_KEEP = 24 * 1024 * 1024;
+const BITMAP_BUDGET = cacheBudget(300, 24);
 const MAX_CANVAS_PIXELS = 32e6;
 const MAX_ACTIVE_RENDERS = 2;
 const ZOOM_SETTLE_MS = 140;
@@ -120,6 +123,7 @@ export class PdfEngine implements Engine {
   private tinter: GlTinter | null | undefined;
   private settling = false;
   private settleTimer = 0;
+  private idleTrimTimer = 0;
   private raf = 0;
   private lastTintMs = 0;
   private paintWaiters = new Map<number, (() => void)[]>();
@@ -260,6 +264,7 @@ export class PdfEngine implements Engine {
     root.addEventListener('click', (e) => this.onClick(e), { capture: true, signal });
     document.addEventListener('selectionchange', () => this.onSelectionChange(), { signal });
     window.addEventListener('resize', () => this.onResize(), { signal });
+    signal.addEventListener('abort', onHidden(() => this.cache.trim(HIDDEN_KEEP)), { once: true });
     this.ro = new ResizeObserver(() => this.onResize());
     this.ro.observe(root);
 
@@ -282,6 +287,7 @@ export class PdfEngine implements Engine {
     this.ro?.disconnect();
     cancelAnimationFrame(this.raf);
     clearTimeout(this.settleTimer);
+    clearTimeout(this.idleTrimTimer);
     for (const a of this.active.values()) a.cancel();
     this.active.clear();
     for (const r of [...this.rowViews.keys()]) this.unmountRow(r);
@@ -424,7 +430,9 @@ export class PdfEngine implements Engine {
     const root = this.root!;
     const L = this.layout;
     const y0 = root.scrollTop;
-    const y1 = y0 + root.clientHeight;
+    // never taller than the window: while the stage is still unconstrained its clientHeight is the whole document,
+    // and mounting every page of a 2,000-page PDF costs ~900 MB and a second of layout
+    const y1 = y0 + Math.min(root.clientHeight, window.innerHeight || root.clientHeight);
     return [rowAt(L.tops, y0), rowAt(L.tops, Math.max(y0, y1 - 1))];
   }
 
@@ -438,6 +446,9 @@ export class PdfEngine implements Engine {
     for (let r = lo; r <= hi; r++) if (!this.rowViews.has(r)) this.mountRow(r);
     this.pump();
     this.emitRelocated(reason);
+    // reading position held for a few seconds: keep only the newest pages' bitmaps (scrolling back just re-renders)
+    clearTimeout(this.idleTrimTimer);
+    this.idleTrimTimer = window.setTimeout(() => this.cache.trim(IDLE_KEEP), 4000);
   }
 
   private mountRow(r: number): void {
