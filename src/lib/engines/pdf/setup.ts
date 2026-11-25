@@ -16,3 +16,8 @@ export function setupPdfjs(): typeof pdfjs {
 export function dataUrl(dir: 'cmaps' | 'standard_fonts' | 'wasm' | 'iccs'): string {
   return new URL(`${import.meta.env.BASE_URL}pdfjs/${dir}/`, document.baseURI).href;
 }
+
+/** The form-script sandbox, served patched from public/pdfjs (see scripts/pdfjs-assets.mjs). */
+export function sandboxUrl(): string {
+  return new URL(`${import.meta.env.BASE_URL}pdfjs/pdf.sandbox.mjs`, document.baseURI).href;
+}

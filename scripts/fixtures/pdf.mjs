@@ -215,6 +215,49 @@ function encryptedPdf() {
   return Buffer.concat([buf, Buffer.from(x)]);
 }
 
+/**
+ * AcroForm driven by JavaScript (exercises the scripting sandbox):
+ * - total = a + b, unless the user typed an override starting with "!" (Calculate sees the current value, as in Acrobat);
+ * - box "p" cycles none -> p -> p+e -> none from its Mouse Up script; "level" counts the ticked boxes.
+ */
+async function formPdf() {
+  const doc = await PDFDocument.create();
+  const p = doc.addPage([612, 792]);
+  const form = doc.getForm();
+  const ctx = doc.context;
+  const field = (name, y, v) => {
+    const tf = form.createTextField(name);
+    if (v) tf.setText(v);
+    tf.addToPage(p, { x: 120, y, width: 120, height: 22 });
+    return tf;
+  };
+  const js = (code) => ({ S: 'JavaScript', JS: PDFString.of(code) });
+  field('a', 700, '2');
+  field('b', 660, '3');
+  const total = field('total', 620);
+  total.acroField.dict.set(PDFName.of('AA'), ctx.obj({ C: js(
+    "if (String(event.value).charAt(0) !== '!') event.value = Number(this.getField('a').value) + Number(this.getField('b').value);",
+  ) }));
+  const box = (name, x) => {
+    const cb = form.createCheckBox(name);
+    cb.addToPage(p, { x, y: 580, width: 16, height: 16 });
+    return cb;
+  };
+  const prof = box('p', 120);
+  box('e', 160);
+  prof.acroField.getWidgets()[0].dict.set(PDFName.of('AA'), ctx.obj({ U: js(
+    "var p = this.getField('p'), e = this.getField('e');" +
+      ' if (!p.isBoxChecked(0)) { if (!e.isBoxChecked(0)) { p.checkThisBox(0, true); e.checkThisBox(0, true); } else e.checkThisBox(0, false); }',
+  ) }));
+  const level = field('level', 540);
+  level.acroField.dict.set(PDFName.of('AA'), ctx.obj({ C: js(
+    "event.value = String((this.getField('p').isBoxChecked(0) ? 1 : 0) + (this.getField('e').isBoxChecked(0) ? 1 : 0));",
+  ) }));
+  form.acroForm.dict.set(PDFName.of('CO'), ctx.obj([total.acroField.ref, level.acroField.ref]));
+  return doc.save({ useObjectStreams: false });
+}
+
+writeFileSync(`${out}/form.pdf`, await formPdf());
 writeFileSync(`${out}/text.pdf`, await textPdf());
 writeFileSync(`${out}/big.pdf`, await bigPdf());
 writeFileSync(`${out}/encrypted.pdf`, encryptedPdf());

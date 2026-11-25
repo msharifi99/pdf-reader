@@ -2,7 +2,7 @@ import './globals';
 import { cacheBudget, HIDDEN_KEEP, onHidden } from '../memory';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import type { PDFPageProxy, PageViewport } from 'pdfjs-dist';
-import { AnnotationLayerBuilder, EventBus, PDFLinkService, TextLayerBuilder } from 'pdfjs-dist/web/pdf_viewer.mjs';
+import { AnnotationLayerBuilder, EventBus, PDFLinkService, PDFScriptingManager, TextLayerBuilder } from 'pdfjs-dist/web/pdf_viewer.mjs';
 import { EngineError } from '../types';
 import type {
   Anchor, AnchorRegion, BookHandle, BookSource, Decoration, DecorationLayer, Engine, EngineEventHandler, EngineEventMap, EngineKind, EngineSelection,
@@ -14,7 +14,7 @@ import {
   PAGE_GAP, PDF_TO_CSS, buildRows, clampZoom, computeLayout, fitZoom, fractionOf, locationAt, pctBox, rowAt, scrollTopFor, type Layout, type Size,
 } from './layout';
 import { ByteLru } from './lru';
-import { setupPdfjs } from './setup';
+import { dataUrl, sandboxUrl, setupPdfjs } from './setup';
 import { GlTinter, INVERT_FILTER, parseCssColor, smartTintImageData, type NormRect, type RGB } from './tint';
 import { fuzzyFind, makeQuote, quadsFor, rangeForQuads } from './textindex';
 
@@ -128,6 +128,11 @@ export class PdfEngine implements Engine {
   private lastTintMs = 0;
   private paintWaiters = new Map<number, (() => void)[]>();
   private linkService?: PDFLinkService;
+  /** Runs the form's JavaScript (calculations, formatting, validation) in pdf.js's QuickJS sandbox. */
+  private scripting?: PDFScriptingManager;
+  private formJs?: { hasJS: Promise<boolean>; fields: Promise<unknown> };
+  /** Widgets with a "Mouse Up" script, and a calculation-order field to trigger recalculation through. */
+  private mouseUp?: { ids: Set<string>; calc?: string };
   private rotateBusy = false;
 
   // location
@@ -223,6 +228,34 @@ export class PdfEngine implements Engine {
       nextPage: () => void this.next(),
       previousPage: () => void this.prev(),
     } as never);
+    const fields = doc.pdf.getFieldObjects();
+    this.formJs = { hasJS: doc.pdf.hasJSActions(), fields };
+    this.mouseUp = undefined;
+    void Promise.all([fields, doc.pdf.getCalculationOrderIds()]).then(([f, order]) => {
+      const ids = new Set<string>();
+      for (const list of (f as Map<string, { id: string; actions?: Map<string, unknown> | null }[]> | null)?.values() ?? [])
+        for (const w of list) if (w.actions?.has('Mouse Up')) ids.add(w.id);
+      if (this.doc === doc && ids.size) this.mouseUp = { ids, calc: order?.[0] };
+    }, () => {});
+    void this.scripting?.setDocument(null);
+    this.scripting = new PDFScriptingManager({ eventBus: bus, sandboxBundleSrc: sandboxUrl(), wasmUrl: dataUrl('wasm') } as never);
+    // Page-level hooks only: field values flow through the DOM / annotationStorage, not this view.
+    this.scripting.setViewer({
+      get currentPageNumber() {
+        return (self.last?.progress.page?.index ?? 0) + 1;
+      },
+      set currentPageNumber(n: number) {
+        void self.goTo({ kind: 'fixed', page: n - 1 }, 'navigation');
+      },
+      get pagesCount() {
+        return doc.pageCount;
+      },
+      getPageView: (i: number) => ({ renderingState: 3 /* FINISHED */, pdfPage: this.pageViews().find((p) => p.i === i)?.proxy }),
+      nextPage: () => void this.next(),
+      previousPage: () => void this.prev(),
+      isInPresentationMode: false,
+    } as never);
+    void this.scripting.setDocument(doc.pdf).catch(() => {});
     return handle;
   }
 
@@ -262,6 +295,23 @@ export class PdfEngine implements Engine {
     root.addEventListener('scroll', () => this.scheduleUpdate(), { passive: true, signal });
     root.addEventListener('wheel', (e) => this.onWheel(e), { passive: false, signal });
     root.addEventListener('click', (e) => this.onClick(e), { capture: true, signal });
+    // Acrobat runs a checkbox's "Mouse Up" script after the toggle, then recalculates; form logic (e.g. 3-state
+    // proficiency boxes) relies on it. pdf.js sends Mouse Up before the toggle, and its change handler recalculates with
+    // the box's pre-script state. For widgets with a Mouse Up script, take over: set the new state (a non-committing
+    // Keystroke, which doesn't recalculate), run Mouse Up, then recalculate via a calculated field's Action.
+    const scripted = (t: EventTarget | null): t is HTMLInputElement =>
+      t instanceof HTMLInputElement && (t.type === 'checkbox' || t.type === 'radio') && !!this.mouseUp?.ids.has(t.getAttribute('data-element-id') ?? '');
+    root.addEventListener('mouseup', (e) => { if (e.isTrusted && scripted(e.target)) e.stopPropagation(); }, { capture: true, signal });
+    root.addEventListener('change', (e) => {
+      const t = e.target;
+      if (!scripted(t)) return;
+      e.stopPropagation();
+      const id = t.getAttribute('data-element-id')!;
+      const send = (detail: object) => this.linkService?.eventBus.dispatch('dispatcheventinsandbox', { source: this, detail });
+      send({ id, name: 'Keystroke', value: t.checked, change: '', selStart: 0, selEnd: 0 });
+      send({ id, name: 'Mouse Up', value: t.checked });
+      if (this.mouseUp?.calc) send({ id: this.mouseUp.calc, name: 'Action' });
+    }, { capture: true, signal });
     document.addEventListener('selectionchange', () => this.onSelectionChange(), { signal });
     window.addEventListener('resize', () => this.onResize(), { signal });
     signal.addEventListener('abort', onHidden(() => this.cache.trim(HIDDEN_KEEP)), { once: true });
@@ -555,7 +605,8 @@ export class PdfEngine implements Engine {
       if (!pv.textB) pv.textB = new TextLayerBuilder({ pdfPage: pv.proxy, onAppend: (div: HTMLDivElement) => pv.el.append(div) });
       if (!pv.annoB && this.linkService)
         pv.annoB = new AnnotationLayerBuilder({
-          pdfPage: pv.proxy, linkService: this.linkService, annotationStorage: this.doc!.pdf.annotationStorage, renderForms: true, onAppend: (div: HTMLDivElement) => pv.el.append(div),
+          pdfPage: pv.proxy, linkService: this.linkService, annotationStorage: this.doc!.pdf.annotationStorage, renderForms: true,
+          enableScripting: !!this.scripting, hasJSActionsPromise: this.formJs?.hasJS, fieldObjectsPromise: this.formJs?.fields, onAppend: (div: HTMLDivElement) => pv.el.append(div),
         } as never);
       await Promise.all([pv.textB.render({ viewport } as never), pv.annoB?.render({ viewport, intent: 'display' } as never)]);
       pv.layerKey = key;
@@ -1225,6 +1276,8 @@ export class PdfEngine implements Engine {
     this.rects.clear();
     this.tinter?.dispose();
     this.tinter = undefined;
+    void this.scripting?.setDocument(null);
+    this.scripting = undefined;
     this.doc?.destroy();
     this.doc = undefined;
     this.listeners.clear();

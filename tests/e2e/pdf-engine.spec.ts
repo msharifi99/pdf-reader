@@ -198,6 +198,30 @@ test('form fields render and annotations do not crash', async ({ page }) => {
   await expect(page.locator('.q-page[data-page="1"] .annotationLayer input')).toHaveValue('Ada');
 });
 
+test('form JavaScript runs like Acrobat: calculations, manual overrides, Mouse Up checkbox scripts', async ({ page }) => {
+  await open(page, 'form.pdf', { fit: 'actual' });
+  await waitRendered(page, 0);
+  const f = (n: string) => page.locator(`.annotationLayer [name="${n}"]`);
+  const type = async (n: string, v: string) => {
+    await f(n).click();
+    await f(n).fill(v);
+    await f(n).press('Tab'); // pdf.js commits a field only when focus moves to another element
+  };
+  await type('a', '10');
+  await expect(f('total')).toHaveValue('13');
+  await type('total', '!99');
+  await type('b', '4');
+  await expect(f('total')).toHaveValue('!99'); // Calculate saw the override in event.value and kept it
+
+  // none -> p -> p+e -> none; each step recalculates after the Mouse Up script ran
+  for (const [level, p, e] of [['1', true, false], ['2', true, true], ['0', false, false]] as const) {
+    await f('p').click();
+    await expect(f('level')).toHaveValue(level);
+    await expect(f('p')).toBeChecked({ checked: p });
+    await expect(f('e')).toBeChecked({ checked: e });
+  }
+});
+
 test('selection becomes an anchor that resolves back to rects, and survives zoom', async ({ page }) => {
   await open(page, 'text.pdf', { fit: 'actual' });
   await waitRendered(page, 0);
