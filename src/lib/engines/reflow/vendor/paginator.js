@@ -14,6 +14,8 @@
  *  4. getVisibleRange starts the range on the first non-space character. The bisect can stop on the collapsed
  *     space that ends the previous page's last line ("as he| comes"); a CFI there resolves to the previous page, so
  *     a saved position reopened one page early whenever a page began exactly at a line wrap.
+ *  6. #scrollTo clears `#justAnchored` when the container did not move: no scroll event comes to clear it, so in
+ *     scrolled flow the reader's first scroll after entering a section went unreported (position and progress lagged).
  */
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -965,6 +967,8 @@ export class Paginator extends HTMLElement {
         if (this.containerPosition === offset) {
             this.#scrollBounds = [offset, this.atStart ? 0 : size, this.atEnd ? 0 : size]
             this.#afterScroll(reason)
+            // QUIRE: no scroll event follows an unmoved container, so `#justAnchored` would eat the reader's next scroll
+            this.#justAnchored = false
             return
         }
         // FIXME: vertical-rl only, not -lr

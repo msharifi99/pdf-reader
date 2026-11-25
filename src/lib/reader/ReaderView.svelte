@@ -44,7 +44,7 @@
   import { FindState } from './find.svelte';
   import { ReadingTools } from './tools.svelte';
   import { ReaderUi } from './ui.svelte';
-  import { registerReaderCommands } from './commands';
+  import { registerReaderCommands } from './commands.svelte';
   import { registerReaderPalette } from './palette';
   import { readerApi } from './slots.svelte';
   import Toolbar from './Toolbar.svelte';

@@ -36,6 +36,23 @@ export function stripGenericFontFamilies(css: string): string {
   });
 }
 
+/** CSS absolute-size keywords as multiples of `medium` (CSS Fonts 4). */
+const SIZE_KEYWORDS: Record<string, number> = { 'xx-small': 0.6, 'x-small': 0.75, small: 0.889, medium: 1, large: 1.2, 'x-large': 1.5, 'xx-large': 2, 'xxx-large': 3 };
+
+/**
+ * Absolute font sizes (px, pt, keywords) ignore the reader's text size: they become rem against the 16px default the
+ * publisher designed for, so the book keeps its proportions and scales with `html{font-size}`.
+ * shortcut: the `font:` shorthand and inline `style` sizes stay absolute; convert them if books turn up that rely on them.
+ */
+export function relativeFontSizes(css: string): string {
+  return css.replace(/(^|[{;\s])font-size\s*:\s*([^;}!]*?)\s*(!important)?\s*(?=[;}]|$)/gi, (m, pre: string, value: string, imp?: string) => {
+    const v = value.trim().toLowerCase();
+    const n = /^(\d*\.?\d+)(px|pt)$/.exec(v);
+    const rem = n ? +n[1]! / (n[2] === 'px' ? 16 : 12) : SIZE_KEYWORDS[v];
+    return rem === undefined ? m : `${pre}font-size:${+rem.toFixed(4)}rem${imp ? ' !important' : ''}`;
+  });
+}
+
 export interface StyleInput {
   theme: Theme;
   typography: TypographyProfile;

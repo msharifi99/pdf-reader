@@ -145,10 +145,51 @@ test('typography change keeps the reading position', async ({ page }) => {
   await R(page, '(r) => r.session.jump({ fraction: 0.5 })');
   await expect.poll(() => fraction(page)).toBeGreaterThan(0.3);
   const before = await fraction(page);
+  const size = () => R(page, `(r) => r.session.typography.fontSize`) as Promise<number>;
+  // the book sets p.tx { font-size: 12pt }: the paragraphs themselves must grow, not just <html>
+  const pSize = () => R(page, `(r) => parseFloat(getComputedStyle(r.session.engine.contents().doc.querySelector('p.tx')).fontSize)`) as Promise<number>;
+  const start = await size();
+  const startP = await pSize();
   await page.keyboard.press('Control+Equal');
   await page.keyboard.press('Control+Equal');
+  await expect.poll(size).toBe(start + 2);
+  await expect.poll(pSize).toBeGreaterThan(startP);
   await page.waitForTimeout(800);
   expect(Math.abs((await fraction(page)) - before)).toBeLessThan(0.12);
+  await page.keyboard.press('Control+Minus');
+  await expect.poll(size).toBe(start + 1);
+  await page.keyboard.press('Control+0');
+  await expect.poll(size).toBe(start);
+  await expect.poll(pSize).toBe(startP);
+});
+
+test('scrolled EPUB: Page Down/Up walk the book in order, landing on section starts and ends', async ({ page }) => {
+  await open(page, 'reflow/epub3.epub');
+  await run(page, 'reader.toggleFlow');
+  await expect.poll(() => R(page, '(r) => r.session.flow')).toBe('scrolled');
+  await page.waitForTimeout(500);
+  const at = () => R(page, '(r) => { const e = r.session.engine; return [e.contents().index, Math.round(e.renderer.start), r.session.location.progress.fraction]; }') as Promise<[number, number, number]>;
+  const walk = async (key: string) => {
+    const seen: [number, number, number][] = [];
+    for (let i = 0; i < 10; i++) {
+      await page.keyboard.press(key);
+      await page.waitForTimeout(600);
+      seen.push(await at());
+    }
+    return seen;
+  };
+  const key = (p: [number, number, number]) => p[0] * 1e5 + p[1];
+  const down = await walk('PageDown');
+  for (let i = 1; i < down.length; i++) {
+    expect(key(down[i]!)).toBeGreaterThanOrEqual(key(down[i - 1]!));
+    expect(down[i]![2]).toBeGreaterThanOrEqual(down[i - 1]![2]);
+    // a step into a new section lands on its top, not partway down
+    if (down[i]![0] !== down[i - 1]![0]) expect(down[i]![1]).toBe(0);
+  }
+  expect(down.at(-1)![0]).toBeGreaterThan(2);
+  const up = await walk('PageUp');
+  for (let i = 1; i < up.length; i++) expect(key(up[i]!)).toBeLessThanOrEqual(key(up[i - 1]!));
+  expect(up.at(-1)![0]).toBeLessThan(down.at(-1)![0]);
 });
 
 test('flow is remembered per book', async ({ page }) => {

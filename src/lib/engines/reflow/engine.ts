@@ -47,7 +47,7 @@ import { drawFor } from './decorations';
 import { FONT_FILES, fontFaceCss, stackFor } from './fontfaces';
 import { noteElement, noteRefKind, referencedType, sanitizeNote } from './footnotes';
 import { loadBook, type LoadedBook } from './loader';
-import { buildStyles, stripGenericFontFamilies, layoutAttrs } from './stylesheet';
+import { buildStyles, relativeFontSizes, stripGenericFontFamilies, layoutAttrs } from './stylesheet';
 import { buildTextMap, chunkSentences, findQuote, normaliseWs, rangeOfText, textOffsetOf, type TextMap } from './textmap';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -185,10 +185,11 @@ export class ReflowEngine implements Engine {
     }
     this.loaded = loaded;
     this.book = loaded.book;
-    // EPUB only (other formats have no publisher CSS files): drop generic-only font-family declarations so the user's font shows
+    // EPUB only (other formats have no publisher CSS files): drop generic-only font-family declarations so the user's font
+    // shows, and make absolute font sizes follow the user's text size
     this.book.transformTarget?.addEventListener('data', ({ detail }: any) => {
       if (detail.type !== 'text/css') return;
-      detail.data = Promise.resolve(detail.data).then((d: unknown) => (typeof d === 'string' ? stripGenericFontFamilies(d) : d));
+      detail.data = Promise.resolve(detail.data).then((d: unknown) => (typeof d === 'string' ? relativeFontSizes(stripGenericFontFamilies(d)) : d));
     });
     const sections: any[] = this.book.sections;
     this.sp = new SectionProgress(sections, 1500, 1600);
@@ -446,6 +447,7 @@ export class ReflowEngine implements Engine {
       }
     };
     renderer.addEventListener('relocate', (e: CustomEvent) => this.onRelocate(e.detail.reason));
+    renderer.addEventListener('scroll', () => (this.scrolledAt = performance.now()));
     host.addEventListener('click', this.onHostClick);
     host.addEventListener('wheel', this.onWheel, { passive: false });
     this.reducedMotion?.addEventListener('change', this.onMotion);
@@ -734,10 +736,22 @@ export class ReflowEngine implements Engine {
   scrollBy(dy: number): void {
     const r = this.renderer;
     if (!r?.scrolled || !dy) return;
-    if (dy > 0 && r.viewSize - r.end <= 2) void this.hop(1);
-    else if (dy < 0 && r.start <= 0) void this.hop(-1);
+    // the rest of the step that just changed section would scroll the new one away from its start/end
+    if (performance.now() - this.lastTurn < 350) return;
+    if (this.atScrollEdge(dy)) this.hopAtEdge(dy);
     else r.containerPosition = r.containerPosition + dy;
   }
+
+  private atScrollEdge(dy: number): boolean {
+    const r = this.renderer!;
+    return dy > 0 ? r.viewSize - r.end <= 2 : r.start <= 0;
+  }
+
+  /** Scrolled flow: a step either scrolls or changes section, never both: the one that reached the edge stops there. */
+  private hopAtEdge(dy: number) {
+    if (performance.now() - this.scrolledAt > 250) void this.hop(dy > 0 ? 1 : -1);
+  }
+  private scrolledAt = -Infinity;
 
   private hop(dir: 1 | -1) {
     const t = performance.now();
@@ -858,9 +872,9 @@ export class ReflowEngine implements Engine {
     const dy = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
     if (r.scrolled) {
       // The browser scrolls the column; hop sections when it is pushed past an edge.
-      if ((dy > 0 && r.viewSize - r.end <= 2) || (dy < 0 && r.start <= 0)) {
+      if (dy && this.atScrollEdge(dy)) {
         e.preventDefault();
-        if (Math.abs(dy) >= 4) void this.hop(dy > 0 ? 1 : -1);
+        if (Math.abs(dy) >= 4) this.hopAtEdge(dy);
       }
       return;
     }

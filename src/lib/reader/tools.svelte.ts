@@ -184,7 +184,8 @@ export function smoothScroll(session: ReaderSession, dy: number, ms = 170): Prom
     const t0 = performance.now();
     let done = 0;
     const frame = (now: number) => {
-      const t = Math.min(1, (now - t0) / ms);
+      // rAF's timestamp can predate t0: unclamped, t < 0 makes the first step go backwards (and hop a section the wrong way)
+      const t = Math.max(0, Math.min(1, (now - t0) / ms));
       const target = Math.round(dy * (1 - (1 - t) ** 3));
       if (target !== done) {
         e.scrollBy(target - done);

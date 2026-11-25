@@ -79,7 +79,9 @@ test.describe('reflow', () => {
 
   test('relocated never reports an element-level CFI, goTo(element CFI) lands on that element, and re-layout keeps the spot', async ({ page }) => {
     await openBook(page, 'epub3.epub', 1);
-    const textCfi = /\/\d+:\d+\)$/; // ends in a text offset, never in a bare element step like /4 or /4/18
+    // ends in a text offset, never in a bare element step like /4 or /4/18; the one exception is the text-less figure
+    // (/4/14), where the element itself is the exact position (a page can begin with it)
+    const textCfi = /\/\d+:\d+\)$|^epubcfi\(\/6\/6!\/4\/14\)$/;
     // every element child of <body>, by CFI
     const n = await frame(page).evaluate(() => document.body.children.length);
     for (let i = 0; i < n; i++) {
@@ -132,7 +134,8 @@ test.describe('reflow', () => {
       return seen;
     });
     expect(cfis.length).toBeGreaterThan(2);
-    for (const c of cfis) expect(c).toMatch(/\/\d+:\d+\)$/);
+    // a text offset, or the text-less figure that can begin a page; never a coarse element like <body> (/4)
+    for (const c of cfis) expect(c).toMatch(/\/\d+:\d+\)$|^epubcfi\(\/6\/6!\/4\/14\)$/);
   });
 
   test('location index and count agree with the fraction shown next to them', async ({ page }) => {

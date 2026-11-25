@@ -11,7 +11,7 @@
   import { settings } from '../stores/settings.svelte';
   import { Button, SegmentedControl, Select, Slider, Switch } from '../ui';
   import type { ReaderSession } from './session.svelte';
-  import { setTypography } from './commands';
+  import { setTypography } from './commands.svelte';
 
   interface Props {
     session: ReaderSession;

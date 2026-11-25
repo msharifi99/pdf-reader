@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Theme, TypographyProfile } from '../types';
 import { fontFaceCss, FONT_FILES, stackFor } from './fontfaces';
-import { stripGenericFontFamilies, buildStyles, columnCount, layoutAttrs, SPREAD_MIN_WIDTH } from './stylesheet';
+import { relativeFontSizes, stripGenericFontFamilies, buildStyles, columnCount, layoutAttrs, SPREAD_MIN_WIDTH } from './stylesheet';
 
 const light: Theme = {
   id: 'light', name: 'Light', dark: false, bg: '#faf7f0', surface: '#fff', text: '#1d1b17', muted: '#666', accent: '#a8651c',
@@ -13,6 +13,19 @@ const typo: TypographyProfile = {
   textIndent: 0, textAlign: 'start', hyphenation: true, marginX: 6, marginY: 5, maxLineWidth: 66, columns: 'auto', overridePublisher: 'off',
 };
 const css = (t: Partial<TypographyProfile> = {}, theme = light) => buildStyles({ theme, typography: { ...typo, ...t } })[1];
+
+describe('relativeFontSizes', () => {
+  it('turns px, pt and size keywords into rem and leaves relative sizes alone', () => {
+    const c = 'p.tx{line-height:1.4;font-size:12pt} .a { font-size: 20px !important; color:red } .b{font-size:small}h1{font-size:1.5em}.c{font-size:80%}.d{font-size:calc(1em + 2px)}';
+    const out = relativeFontSizes(c);
+    expect(out).toContain('p.tx{line-height:1.4;font-size:1rem}');
+    expect(out).toContain('.a { font-size:1.25rem !important; color:red }');
+    expect(out).toContain('.b{font-size:0.889rem}');
+    expect(out).toContain('h1{font-size:1.5em}');
+    expect(out).toContain('.c{font-size:80%}');
+    expect(out).toContain('.d{font-size:calc(1em + 2px)}');
+  });
+});
 
 describe('stripGenericFontFamilies', () => {
   it('drops generic-only font-family declarations and keeps real choices', () => {
