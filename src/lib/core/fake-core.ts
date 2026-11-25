@@ -472,6 +472,16 @@ export function createFakeRuntime(): CoreRuntime {
     /** Is the (fake) indexer paused because a book is being read? */
     isReading: () => reading,
     /** Add a fixture book by file name (no manifest needed) and announce it. */
+    /** Drop every book (after the manifest seed) plus index/OCR state, so a test controls exactly what is in the library. */
+    resetLibrary: async () => {
+      await seed();
+      books.clear();
+      removed.clear();
+      fixtureName.clear();
+      textIndex.clear();
+      ocrCache.clear();
+      progress.clear();
+    },
     addFixture: (name: string, e: Partial<ManifestEntry> = {}) => {
       const b = addBook(name, e);
       announce([b.id]);

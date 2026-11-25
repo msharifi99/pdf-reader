@@ -16,7 +16,8 @@ const h = {
   fake,
   engine: null as Engine | null,
   /** Add fixture books ("pdf/text.pdf") to the fake library and return their ids. */
-  addFixtures(names: string[]): string[] {
+  async addFixtures(names: string[]): Promise<string[]> {
+    await (fake().resetLibrary as () => Promise<void>)();
     return names.map((n) => fake().addFixture(n as never) as string);
   },
   /** Open a library book in a visible engine and jump to `locator`; returns where it landed. */
