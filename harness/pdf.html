@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF engine harness</title>
+    <style>
+      html, body { height: 100%; margin: 0; background: #16171a; color: #d8d8d0; font: 13px system-ui, sans-serif; }
+      body { display: grid; grid-template-rows: auto 1fr auto; }
+      #bar { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; background: #222428; align-items: center; }
+      #bar button, #bar select, #bar input { font: inherit; padding: 3px 8px; }
+      #stage { position: relative; min-height: 0; }
+      #status { padding: 4px 8px; background: #222428; font-variant-numeric: tabular-nums; }
+    </style>
+  </head>
+  <body>
+    <div id="bar">
+      <select id="file" data-testid="file"></select>
+      <button id="open">Open</button>
+      <button id="prev" data-testid="prev">Prev</button>
+      <button id="next" data-testid="next">Next</button>
+      <button id="zin">Zoom +</button>
+      <button id="zout">Zoom -</button>
+      <button id="fw">Fit width</button>
+      <button id="fp">Fit page</button>
+      <button id="fa">100%</button>
+      <button id="rot">Rotate</button>
+      <select id="tint"><option>smart</option><option>invert</option><option>original</option></select>
+      <select id="theme"><option>dark</option><option>light</option></select>
+      <select id="flow"><option>scrolled</option><option>paginated</option></select>
+      <select id="spread"><option>single</option><option>double</option><option>auto</option></select>
+      <input id="q" placeholder="Search" />
+      <button id="find">Find</button>
+    </div>
+    <div id="stage" data-testid="stage"></div>
+    <div id="status" data-testid="status"></div>
+    <script type="module" src="./pdf.ts"></script>
+  </body>
+</html>
