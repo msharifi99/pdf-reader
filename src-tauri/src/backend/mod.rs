@@ -120,7 +120,7 @@ impl Core {
     pub fn open_document(&self, path: &str) -> Res<OpenedDocument> {
         let r = self.db.register(Path::new(path), true)?.ok_or_else(|| Error::not_found("that file"))?;
         let progress = self.db.get_progress(&r.book.id)?;
-        Ok(OpenedDocument { book: r.book, progress, start_image: r.start_image.map(|p| p.to_string_lossy().into_owned()) })
+        Ok(OpenedDocument { book: r.book, progress, start_image: r.start_image.map(|p| p.to_string_lossy().into_owned()), created: r.created })
     }
 
     pub fn add_watched_folder(self: &Arc<Self>, path: &str) -> Res<()> {

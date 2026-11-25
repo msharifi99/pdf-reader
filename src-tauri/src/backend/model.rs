@@ -125,6 +125,8 @@ pub struct OpenedDocument {
     pub progress: Option<Progress>,
     /// When a single image was opened: that image's absolute path (the book is its folder).
     pub start_image: Option<String>,
+    /// The book was added by this open (not already in the library): if it then fails to open it is removed again.
+    pub created: bool,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq, Default)]

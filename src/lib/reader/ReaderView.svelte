@@ -100,7 +100,7 @@
     } catch (err) {
       if (session.disposed || (err as EngineError)?.code === 'aborted') return;
       presentError(err, { fileName: book.source.kind === 'file' ? (book.source.fileName ?? book.title) : book.title });
-      if (app.book?.id === bookId) closeBook();
+      if (app.book?.id === bookId) closeBook({ failed: true });
     } finally {
       clearTimeout(slowTimer);
       slow = false;

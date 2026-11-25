@@ -40,3 +40,56 @@ for (const f of REQUIRED['a corrupt file for each format']!) {
     await expect.poll(() => page.evaluate(() => (globalThis as any).__QUIRE__.app.view)).toBe('library');
   });
 }
+
+const titles = (page: import('@playwright/test').Page) =>
+  page.evaluate(async () => (await (globalThis as any).__QUIRE_FAKE__.api.listBooks({})).map((b: any) => b.title as string));
+
+test('a book that fails to open on first add leaves no ghost in the library', async ({ page }) => {
+  await boot(page);
+  expect(await titles(page)).not.toContain('corrupt');
+  await page.evaluate(() => void (globalThis as any).__QUIRE__.openDocument('reflow/corrupt.epub'));
+  await expect(page.getByTestId('error-message')).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('button', { name: 'OK', exact: true }).click();
+  await expect.poll(() => titles(page)).not.toContain('corrupt');
+});
+
+test('a missing file says it cannot be found, not that it is damaged', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => void (globalThis as any).__QUIRE__.openDocument('pdf/not-here.pdf'));
+  await expect(page.getByText('Quire can’t find this file')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText('looks damaged')).toHaveCount(0);
+});
+
+test('an existing book that fails to open stays in the library', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(async () => {
+    const f = (globalThis as any).__QUIRE_FAKE__;
+    f.addFixture('reflow/corrupt.epub', { title: 'Keeper' });
+  });
+  await page.evaluate(() => void (globalThis as any).__QUIRE__.openDocument('reflow/corrupt.epub'));
+  await expect(page.getByTestId('error-message')).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('button', { name: 'OK', exact: true }).click();
+  expect(await titles(page)).toContain('Keeper');
+});
+
+test('the EPUB cover shows alone and centred in a spread', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 800 });
+  await boot(page);
+  await page.evaluate(() => (globalThis as any).__QUIRE__.openDocument('reflow/epub3.epub'));
+  await expect(page.getByTestId('reader-view')).toHaveAttribute('data-status', 'ready', { timeout: 20_000 });
+  await expect(async () => {
+    const m = await page.evaluate(() => {
+      const e = (globalThis as any).__QUIRE_READER__.session.engine;
+      const c = e.getContents()[0];
+      const img = c?.doc.querySelector('img') as HTMLImageElement | null;
+      if (!img) return null;
+      const fr = (c.doc.defaultView!.frameElement as HTMLElement).getBoundingClientRect();
+      const r = img.getBoundingClientRect();
+      const page0 = (globalThis as any).__QUIRE_READER__.session.location.locator.cfi;
+      return { centre: fr.left + r.left + r.width / 2, win: innerWidth, wide: r.width, page0 };
+    });
+    expect(m).not.toBeNull();
+    // the picture's centre sits near the window's centre (not in the left half)
+    expect(Math.abs(m!.centre - m!.win / 2)).toBeLessThan(m!.win * 0.15);
+  }).toPass({ timeout: 8000 });
+});

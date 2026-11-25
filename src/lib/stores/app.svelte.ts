@@ -31,6 +31,8 @@ export interface OpenBook {
   progress?: unknown;
   /** When a single image was opened: that image's path (the book is its folder). */
   startImage?: string | null;
+  /** this open added the book to the library */
+  created?: boolean;
   /** Open here instead of the saved position (library full-text hit, deep link). The reader goes to it once. */
   initialLocator?: Locator;
 }
@@ -48,7 +50,10 @@ export function openBook(book: OpenBook): void {
   app.view = 'reader';
 }
 
-export function closeBook(): void {
+/** `failed`: the book could not be opened; if that open added it to the library it is taken out again (no ghost). */
+export function closeBook(opts: { failed?: boolean } = {}): void {
+  const b = app.book;
+  if (opts.failed && b?.created && !/^(file|path):/.test(b.id)) void core.removeBook(b.id).catch(() => {});
   revoke();
   app.book = null;
   app.view = 'library';
@@ -107,5 +112,6 @@ async function fromPath(path: string): Promise<OpenBook> {
     source: { kind: 'file', url: fileUrl({ bookId: b.id }), format: b.format, fileName: baseName(path), byteLength: b.fileSize },
     progress: r.progress ?? undefined,
     startImage: r.startImage ?? null,
+    created: r.created,
   };
 }

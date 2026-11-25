@@ -3,6 +3,7 @@
  * Created by ReaderView per mount; `readerApi.session` exposes the live one to T11/T13 (see slots.svelte.ts).
  */
 import { core, fileUrl, raw } from '../core/core';
+import { onFlush } from '../core/flush';
 import { engineKindFor, sniffSource } from '../engines/sniff';
 import type {
   Anchor, BookHandle, BookSource, Decoration, DecorationLayer, Engine, EngineKind, EngineSelection, Fit, Flow, Locator, PageTint, Presentation,
@@ -84,6 +85,7 @@ export class ReaderSession {
   constructor(book: OpenBook) {
     this.book = book;
     this.kind = engineKindFor(book.format);
+    this.#offs.push(onFlush(() => this.flush())); // the window is closing: write the position now
   }
 
   get disposed(): boolean {
@@ -223,7 +225,10 @@ export class ReaderSession {
     const src = b.source;
     if (src.kind !== 'file') return [src, this.kind];
     // The magic bytes decide the engine; a mislabelled file still opens with the right one.
-    const sniffed = await sniffSource(src.url, signal).catch(() => null);
+    const sniffed = await sniffSource(src.url, signal).catch((e) => {
+      if ((e as { code?: string })?.code === 'NotFound') throw e; // the file is gone: say so
+      return null;
+    });
     const format = sniffed?.format ?? src.format;
     return [{ ...src, format }, engineKindFor(format)];
   }

@@ -285,12 +285,18 @@ export function createFakeRuntime(): CoreRuntime {
     // ---- library ----
     openDocument: async (path) => {
       await seed();
+      const known = [...books.values()].some((x) => x.path === path || fixtureName.get(x.id) === fixRel(path));
+      if (!known && typeof fetch === 'function') {
+        // like the real core's canonicalize: a path with no file behind it is NotFound (the dev server answers unknown paths with index.html)
+        const r = await fetch(`/fixtures/${fixRel(path)}`, { method: 'HEAD' }).catch(() => null);
+        if (!r?.ok || /html/.test(r.headers.get('content-type') ?? '')) fail('NotFound', "Couldn't find that file.");
+      }
       const b = addBook(path);
       if (!b.available) fail('NotFound', "Couldn't find that file.");
       removed.delete(b.id);
       b.lastOpenedAt = Date.now();
       announce([b.id]);
-      return { book: view(b), progress: progress.get(b.id) ?? null, startImage: b.format === 'image' ? path : null };
+      return { book: view(b), progress: progress.get(b.id) ?? null, startImage: b.format === 'image' ? path : null, created: !known };
     },
     listBooks: async (q) => {
       await seed();

@@ -9,6 +9,8 @@
  *     text node. Foliate used the element itself, so the reported CFI (and the anchor kept for re-layout)
  *     was element-level (`/4/18`, or `/4` for the whole body) and a resize/typography change snapped to it.
  *  3. #afterScroll does not report the transient empty padding page reached just before a section change.
+ *  5. A section that is only one picture (the cover) is laid out as a single column the width of the spread and
+ *     centred, instead of the picture on the left page with an empty right page.
  *  4. getVisibleRange starts the range on the first non-space character. The bisect can stop on the collapsed
  *     space that ends the previous page's last line ("as he| comes"); a CFI there resolves to the previous page, so
  *     a saved position reopened one page early whenever a page began exactly at a line wrap.
@@ -323,6 +325,15 @@ class View {
         this.#size = vertical ? height : width
 
         const doc = this.document
+        // QUIRE: cover-only section in a spread: one centred column
+        const coverOnly = !vertical && width / columnWidth >= 1.5 && !doc.body.textContent.trim()
+            && doc.body.querySelectorAll('img, svg, video').length === 1
+        if (coverOnly) {
+            columnWidth = width - gap
+            setStylesImportant(doc.body, { 'text-align': 'center' })
+            for (const el of doc.body.querySelectorAll('img, svg, video'))
+                setStylesImportant(el, { 'display': 'block', 'margin': '0 auto' })
+        }
         setStylesImportant(doc.documentElement, {
             'box-sizing': 'border-box',
             'column-width': `${Math.trunc(columnWidth)}px`,

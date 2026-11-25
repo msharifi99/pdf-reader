@@ -355,6 +355,8 @@ export type OpenedDocument = {
 	progress: Progress | null,
 	/**  When a single image was opened: that image's absolute path (the book is its folder). */
 	startImage: string | null,
+	/**  The book was added by this open (not already in the library): if it then fails to open it is removed again. */
+	created: boolean,
 };
 
 export type Progress = {

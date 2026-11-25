@@ -182,9 +182,14 @@ export function blobReader(blob: Blob): RangeReader {
 }
 
 /** Range-fetch reader. One initial `bytes=0-<HEAD>` request discovers the size from Content-Range. */
+/** A vanished file is `NotFound` (the calm "can't find this file"), not a damaged one. */
+function httpError(status: number, url: string): Error {
+  return Object.assign(new Error(`sniff: HTTP ${status} for ${url}`), status === 404 ? { code: 'NotFound' } : {});
+}
+
 export async function urlReader(url: string, signal?: AbortSignal): Promise<RangeReader> {
   const first = await fetch(url, { headers: { Range: `bytes=0-${HEAD_BYTES - 1}` }, signal });
-  if (!first.ok) throw new Error(`sniff: HTTP ${first.status} for ${url}`);
+  if (!first.ok) throw httpError(first.status, url);
   const head = new Uint8Array(await first.arrayBuffer());
   const total = /\/(\d+)$/.exec(first.headers.get('Content-Range') ?? '')?.[1];
   const size = total ? Number(total) : head.length; // no Content-Range => server sent everything
@@ -193,7 +198,7 @@ export async function urlReader(url: string, signal?: AbortSignal): Promise<Rang
     read: async (s, e) => {
       if (s === 0 && e <= head.length) return head.subarray(0, e);
       const r = await fetch(url, { headers: { Range: `bytes=${s}-${e - 1}` }, signal });
-      if (!r.ok) throw new Error(`sniff: HTTP ${r.status} for ${url}`);
+      if (!r.ok) throw httpError(r.status, url);
       return new Uint8Array(await r.arrayBuffer());
     },
   };
