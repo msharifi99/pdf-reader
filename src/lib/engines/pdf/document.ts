@@ -32,6 +32,51 @@ export function mapError(e: unknown): EngineError {
   return new EngineError('unknown', msg, { cause: e });
 }
 
+const CHUNK = 1 << 18;
+const MAX_RANGE_RETRIES = 2;
+
+/** Fetch exactly [begin, end) with Range requests; copes with servers (quire://) that answer fewer bytes than asked. */
+async function fetchRange(url: string, begin: number, end: number, signal?: AbortSignal): Promise<Uint8Array> {
+  const out = new Uint8Array(end - begin);
+  let got = 0;
+  let retries = 0;
+  while (got < out.length) {
+    const res = await fetch(url, { headers: { Range: `bytes=${begin + got}-${end - 1}` }, signal, cache: 'no-store' });
+    if (res.status !== 206 && !(res.status === 200 && begin + got === 0)) throw new EngineError('network', `Range request failed (${res.status})`);
+    const part = new Uint8Array(await res.arrayBuffer()).subarray(0, out.length - got);
+    if (!part.length && ++retries > MAX_RANGE_RETRIES) throw new EngineError('network', 'Empty range response');
+    out.set(part, got);
+    got += part.length;
+  }
+  return out;
+}
+
+/**
+ * Our own range transport instead of pdf.js's URL loader: the first request learns the total size
+ * from Content-Range (the quire:// protocol answers a Range-less request with only a 16 MB slice,
+ * which pdf.js would mistake for the whole file) and every later request is an explicit small range.
+ */
+async function rangeTransport(pdfjs: ReturnType<typeof setupPdfjs>, url: string, signal?: AbortSignal) {
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: { Range: `bytes=0-${CHUNK - 1}` }, signal, cache: 'no-store' });
+  } catch (e) {
+    throw (e as Error)?.name === 'AbortError' ? new EngineError('aborted') : new EngineError('network', (e as Error)?.message, { cause: e });
+  }
+  if (!res.ok) throw new EngineError('network', `Could not read the file (${res.status})`);
+  const first = new Uint8Array(await res.arrayBuffer());
+  const total = /\/(\d+)\s*$/.exec(res.headers.get('Content-Range') ?? '')?.[1];
+  const length = total ? Number(total) : first.length;
+  const transport = new pdfjs.PDFDataRangeTransport(length, first.length >= length ? first : first.subarray(0, Math.min(first.length, length)));
+  transport.requestDataRange = (begin: number, end: number) => {
+    fetchRange(url, begin, Math.min(end, length), signal).then(
+      (data) => transport.onDataRange(begin, data),
+      (e) => console.warn('[pdf-engine] range request failed', e),
+    );
+  };
+  return transport;
+}
+
 export const tick = () => new Promise<void>((r) => setTimeout(r, 0));
 
 export class PdfDoc {
@@ -57,9 +102,10 @@ export class PdfDoc {
     if (source.kind !== 'file' || source.format !== 'pdf') throw new EngineError('unsupported-format', 'The PDF engine only opens PDF files.');
     if (options.signal?.aborted) throw new EngineError('aborted');
     const pdfjs = setupPdfjs();
+    const range = await rangeTransport(pdfjs, source.url, options.signal);
     const task = pdfjs.getDocument({
-      url: source.url,
-      rangeChunkSize: 1 << 20,
+      range,
+      rangeChunkSize: 1 << 18,
       disableAutoFetch: true,
       cMapUrl: dataUrl('cmaps'),
       cMapPacked: true,

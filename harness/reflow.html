@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reflow engine harness</title>
+    <style>
+      html, body { height: 100%; margin: 0; background: #16171a; color: #d8d8d0; font: 13px system-ui, sans-serif; }
+      body { display: grid; grid-template-rows: auto 1fr auto; }
+      #bar { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; background: #222428; align-items: center; }
+      #bar button, #bar select, #bar input { font: inherit; padding: 3px 8px; }
+      #bar label { display: inline-flex; gap: 4px; align-items: center; }
+      #stage { position: relative; min-height: 0; }
+      #target { position: absolute; inset: 0; }
+      #status { padding: 4px 8px; background: #222428; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #note { position: absolute; z-index: 5; max-width: 340px; padding: 8px 10px; background: #fffbe8; color: #222; border-radius: 6px; box-shadow: 0 4px 16px #0006; display: none; }
+      #selmenu { position: absolute; z-index: 5; padding: 4px 8px; background: #222428; color: #fff; border-radius: 6px; display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="bar">
+      <select id="file" data-testid="file"></select>
+      <button id="open" data-testid="open">Open</button>
+      <button id="prev" data-testid="prev">Prev</button>
+      <button id="next" data-testid="next">Next</button>
+      <select id="toc" data-testid="toc"></select>
+      <select id="flow" data-testid="flow"><option>paginated</option><option>scrolled</option></select>
+      <select id="spread" data-testid="spread"><option>auto</option><option>single</option><option>double</option></select>
+      <select id="theme" data-testid="theme"><option>light</option><option>dark</option><option>solarized</option></select>
+      <select id="font" data-testid="font"><option>literata</option><option>source-serif-4</option><option>inter</option><option>atkinson-hyperlegible</option><option>publisher</option></select>
+      <label>Size <input id="size" data-testid="size" type="range" min="12" max="36" value="19" /></label>
+      <label>Leading <input id="lh" data-testid="lh" type="range" min="1.2" max="2.2" step="0.05" value="1.6" /></label>
+      <select id="override" data-testid="override"><option>off</option><option>fonts</option><option>all</option></select>
+      <label><input id="justify" data-testid="justify" type="checkbox" /> Justify</label>
+      <label><input id="anim" data-testid="anim" type="checkbox" checked /> Animate</label>
+      <input id="q" data-testid="q" placeholder="Search" />
+      <button id="find" data-testid="find">Find</button>
+      <button id="hit-next" data-testid="hit-next">Next hit</button>
+      <button id="speak" data-testid="speak">Speak demo</button>
+    </div>
+    <div id="stage" data-testid="stage">
+      <div id="target" data-testid="target"></div>
+      <div id="note" data-testid="note"></div>
+      <div id="selmenu" data-testid="selmenu"></div>
+    </div>
+    <div id="status" data-testid="status"></div>
+    <script type="module" src="./reflow.ts"></script>
+  </body>
+</html>

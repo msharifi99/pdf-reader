@@ -34,7 +34,7 @@ const h = {
     const queue = [...(opts.passwords ?? [])];
     const t0 = performance.now();
     try {
-      h.handle = await engine.open({ kind: 'file', url: `/fixtures/pdf/${file}`, format: 'pdf', fileName: file }, {
+      h.handle = await engine.open({ kind: 'file', url: /^https?:/.test(file) ? file : `/fixtures/pdf/${file}`, format: 'pdf', fileName: file }, {
         requestPassword: async (retry) => { h.prompts.push(retry); return queue.shift() ?? null; },
       });
       h.timing.openMs = performance.now() - t0;
