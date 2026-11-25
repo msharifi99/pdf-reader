@@ -34,7 +34,7 @@ export class WebtoonView implements PageView {
   ) {
     this.scrollEl = document.createElement('div');
     this.scrollEl.className = 'q-view q-webtoon';
-    this.scrollEl.style.cssText = 'position:absolute;inset:0;overflow:auto;scrollbar-width:none;touch-action:pan-x pan-y;overflow-anchor:none;';
+    this.scrollEl.style.cssText = 'position:absolute;inset:0;overflow:auto;scrollbar-width:none;touch-action:none;overflow-anchor:none;';
     this.strip = document.createElement('div');
     this.strip.className = 'q-strip';
     this.strip.style.cssText = 'position:relative;margin:0 auto;';
@@ -87,9 +87,10 @@ export class WebtoonView implements PageView {
   }
 
   private place(i: number, c: HTMLCanvasElement, repaint: boolean): void {
-    c.style.top = `${this.tops[i]}px`;
-    c.style.width = `${this.width}px`;
-    c.style.height = `${this.heights[i]}px`;
+    const b = c.parentElement!;
+    b.style.top = `${this.tops[i]}px`;
+    b.style.width = c.style.width = `${this.width}px`;
+    b.style.height = c.style.height = `${this.heights[i]}px`;
     if (repaint) this.paintPage(i, c);
   }
 
@@ -113,7 +114,7 @@ export class WebtoonView implements PageView {
     for (const [i, c] of this.realized) {
       if (i < from || i > to) {
         c.width = c.height = 0;
-        c.remove();
+        c.parentElement?.remove();
         this.realized.delete(i);
       }
     }
@@ -124,10 +125,16 @@ export class WebtoonView implements PageView {
       c.dataset.page = String(i);
       c.setAttribute('role', 'img');
       c.setAttribute('aria-label', `Page ${i + 1} of ${this.host.count}`);
-      c.style.cssText = 'position:absolute;left:0;display:block;';
-      this.strip.append(c);
+      c.style.cssText = 'display:block;';
+      const box = document.createElement('div');
+      box.className = 'q-pg';
+      box.dataset.page = String(i);
+      box.style.cssText = 'position:absolute;left:0;container-type:size;';
+      box.append(c);
+      this.strip.append(box);
       this.realized.set(i, c);
       this.place(i, c, true);
+      this.host.mounted(i, box);
     }
     const loc = this.locate();
     this.page = loc.page;

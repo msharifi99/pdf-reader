@@ -23,6 +23,7 @@ import {
   type OpenOptions,
   type PageTint,
   type Presentation,
+  type Rect,
   type ReadingDirection,
   type RelocatedEvent,
   type ResolvedAnchor,
@@ -44,6 +45,7 @@ import { bindInteraction } from './interact';
 import { clamp, type Size } from './layout';
 import { PagedView } from './paged';
 import { baseName, stripExt } from './pages';
+import { anchorFor, findQuote, quadsFor, rotateBox, wordStarts, wordText, wordsInRange, type Quad, type Rotation } from './ocr';
 import { Painter, type TintState } from './painter';
 import { openSource, type PageSource } from './sources';
 import { WebtoonView } from './webtoon';
@@ -74,7 +76,22 @@ interface ComicPresentation {
   zoom: number;
   fit: Fit;
   direction: ReadingDirection;
+  rotation: Rotation;
 }
+
+const STYLE_ID = 'q-comic-style';
+const CSS = `
+.q-pg>.q-deco,.q-pg>.q-ocr{position:absolute;inset:0;pointer-events:none}
+.q-pg>.q-deco{z-index:1}
+.q-pg>.q-ocr{z-index:2}
+.q-ocr ::selection{background:var(--q-selection)}
+.q-ocr span{position:absolute;color:transparent;white-space:pre;user-select:text;-webkit-user-select:text;pointer-events:auto;cursor:text;overflow:visible;line-height:1}
+.q-d{position:absolute;box-sizing:border-box;border-radius:2px}
+.q-d-underline{background:none!important;border-bottom:2px solid var(--c)}
+.q-d-note{border-right:3px solid var(--c)}
+.q-d-current{outline:2px solid var(--q-accent);outline-offset:1px}
+.q-d-bookmark{width:12px!important;height:20px!important;left:auto!important;right:10px;background:var(--q-accent);clip-path:polygon(0 0,100% 0,100% 100%,50% 75%,0 100%)}
+`;
 
 export class ComicEngine implements Engine {
   readonly kind = 'comic' as const;
@@ -92,8 +109,12 @@ export class ComicEngine implements Engine {
   private handle: BookHandle | null = null;
   private readonly listeners = new Map<keyof EngineEventMap, Set<(e: never) => void>>();
   private readonly painter = new Painter();
-  private pres: ComicPresentation = { theme: DEFAULT_THEME, pageTint: 'original', flow: 'paginated', spread: 'single', zoom: 1, fit: 'page', direction: 'ltr' };
+  private pres: ComicPresentation = { theme: DEFAULT_THEME, pageTint: 'original', flow: 'paginated', spread: 'single', zoom: 1, fit: 'page', direction: 'ltr', rotation: 0 };
   private directionChosen = false;
+  private decos: Record<DecorationLayer, Decoration[]> = { annotations: [], search: [], speech: [] };
+  private selection: EngineSelection | null = null;
+  private selAbort: AbortController | null = null;
+  private selTimer = 0;
   private gap = 6;
   private tintCache: { theme: Theme; mode: PageTint; state: TintState } | null = null;
 
@@ -168,6 +189,14 @@ export class ComicEngine implements Engine {
     root.style.cssText = 'position:absolute;inset:0;overflow:hidden;user-select:none;-webkit-user-select:none;';
     target.append(root);
     this.root = root;
+    if (!document.getElementById(STYLE_ID)) {
+      const st = document.createElement('style');
+      st.id = STYLE_ID;
+      st.textContent = CSS;
+      document.head.append(st);
+    }
+    this.selAbort = new AbortController();
+    document.addEventListener('selectionchange', () => this.onSelectionChange(), { signal: this.selAbort.signal });
     this.applyBackground();
     this.unbind = bindInteraction(root, () => this.view, this.host);
     this.ro = new ResizeObserver(() => {
@@ -199,6 +228,10 @@ export class ComicEngine implements Engine {
     this.view?.dispose();
     this.view = null;
     this.unbind?.();
+    this.selAbort?.abort();
+    this.selAbort = null;
+    clearTimeout(this.selTimer);
+    this.selection = null;
     this.ro?.disconnect();
     cancelAnimationFrame(this.resizeRaf);
     this.resizeRaf = 0;
@@ -277,6 +310,7 @@ export class ComicEngine implements Engine {
       n.direction = p.direction;
       this.directionChosen = true;
     }
+    if (p.rotation !== undefined && [0, 90, 180, 270].includes(p.rotation)) n.rotation = p.rotation;
     if (!this.root || !this.view) return;
     if (n.flow !== before.flow) {
       const l = this.last?.locator;
@@ -286,7 +320,9 @@ export class ComicEngine implements Engine {
     }
     if (n.theme !== before.theme) this.applyBackground();
     if (n.theme !== before.theme || n.pageTint !== before.pageTint) this.view.repaint();
-    if (n.spread !== before.spread || n.fit !== before.fit || n.zoom !== before.zoom || n.direction !== before.direction) this.view.relayout();
+    if (n.spread !== before.spread || n.fit !== before.fit || n.zoom !== before.zoom || n.direction !== before.direction || n.rotation !== before.rotation) this.view.relayout();
+    if (n.rotation !== before.rotation) this.redraw(['ocr', 'deco']);
+    else if (n.theme !== before.theme) this.redraw(['deco']);
   }
 
   getPresentation(): Readonly<ComicPresentation> {
@@ -310,7 +346,10 @@ export class ComicEngine implements Engine {
   }
 
   private applyBackground(): void {
-    if (this.root) this.root.style.background = this.pres.theme.bg;
+    if (!this.root) return;
+    this.root.style.background = this.pres.theme.bg;
+    this.root.style.setProperty('--q-selection', this.pres.theme.selection);
+    this.root.style.setProperty('--q-accent', this.pres.theme.accent);
   }
 
   private tint(): TintState {
@@ -354,14 +393,18 @@ export class ComicEngine implements Engine {
     const old = this.dimsArr[page];
     this.dimsArr[page] = { w: bm.width, h: bm.height };
     if (!old || Math.abs(old.h / old.w - bm.height / bm.width) > 0.005) this.view?.onDims(page);
+    if (!old || old.w !== bm.width || old.h !== bm.height) this.redraw(['ocr', 'deco'], page);
     return bm;
   }
 
   private readonly host: ViewHost = {
     count: 0,
     painter: this.painter,
-    settings: () => ({ fit: this.pres.fit, zoom: this.pres.zoom, spread: this.pres.spread, direction: this.pres.direction, gap: this.gap, tint: this.tint() }),
-    dims: (i) => this.dimsArr[i],
+    settings: () => ({ rotation: this.rot(), fit: this.pres.fit, zoom: this.pres.zoom, spread: this.pres.spread, direction: this.pres.direction, gap: this.gap, tint: this.tint() }),
+    dims: (i) => {
+      const d = this.dimsArr[i];
+      return d && this.rot() % 180 ? { w: d.h, h: d.w } : d;
+    },
     cached: (i) => {
       const b = this.cache.get(i);
       return b && b.width > 0 ? b : undefined;
@@ -388,7 +431,16 @@ export class ComicEngine implements Engine {
       if (p.zoom !== undefined && Math.abs(p.zoom - this.pres.zoom) > 0.001) changed.zoom = this.pres.zoom = p.zoom;
       if (Object.keys(changed).length) this.emit('presentationchange', changed);
     },
-    pointer: (ev) => this.emit('pointer', ev),
+    pointer: (ev) => {
+      const hit = this.hitDecoration(ev.x, ev.y);
+      if (hit) this.emit('decorationclick', hit);
+      else this.emit('pointer', ev);
+    },
+    mounted: (page, box) => {
+      box.insertAdjacentHTML('beforeend', '<div class="q-deco"></div><div class="q-ocr"></div>');
+      this.drawDeco(box);
+      this.drawOcr(box);
+    },
     layoutChanged: () => this.emit('layout', undefined),
   };
 
@@ -450,7 +502,7 @@ export class ComicEngine implements Engine {
     return (this.ocr.get(page) ?? []).map((w) => w.text).join(' ');
   }
 
-  /** Searches the OCR text only (comics have no other). Hits carry no quads: nothing is drawn over comic pages. */
+  /** Searches the OCR text only (comics have no other). Hits carry word quads (image pixels) so the `search` layer can draw them. */
   async *search(query: string, options: SearchOptions = {}): AsyncGenerator<SearchHit> {
     const q = options.caseSensitive ? query.trim() : query.trim().toLowerCase();
     if (!q) return;
@@ -461,11 +513,14 @@ export class ComicEngine implements Engine {
       for (let at = hay.indexOf(q); at >= 0; at = hay.indexOf(q, at + q.length)) {
         const end = at + q.length;
         if (options.wholeWord && (/\w/.test(hay[at - 1] ?? '') || /\w/.test(hay[end] ?? ''))) continue;
-        const locator: Locator = { kind: 'fixed', page, y: 0 };
+        const ws = this.ocr.get(page)!;
+        const r = wordsInRange(ws, at, end);
+        const found = r ? anchorFor(page, ws, r[0], r[1], this.dimsArr[page]?.h ?? 0) : null;
+        const locator: Locator = found?.locator ?? { kind: 'fixed', page, y: 0 };
         yield {
           locator,
           excerpt: { before: text.slice(Math.max(0, at - 40), at), match: text.slice(at, end), after: text.slice(end, end + 40) },
-          anchor: { locator, quote: { exact: text.slice(at, end), prefix: text.slice(Math.max(0, at - 32), at), suffix: text.slice(end, end + 32) } },
+          anchor: { locator, quote: { exact: text.slice(at, end), prefix: text.slice(Math.max(0, at - 32), at), suffix: text.slice(end, end + 32) }, pdfQuads: found?.pdfQuads },
         };
       }
     }
@@ -492,44 +547,225 @@ export class ComicEngine implements Engine {
         text,
         locator,
         end: { kind: 'fixed', page, y: 1 },
-        anchorFor: async (s, e) => ({ locator, quote: { exact: text.slice(s, e), prefix: text.slice(Math.max(0, s - 32), s), suffix: text.slice(e, e + 32) } }),
+        anchorFor: async (s, e) => {
+          const ws = this.ocr.get(page);
+          const r = ws && wordsInRange(ws, s, e);
+          const a = ws && r ? anchorFor(page, ws, r[0], r[1], this.dimsArr[page]?.h ?? 0) : null;
+          return { locator: a?.locator ?? locator, quote: { exact: text.slice(s, e), prefix: text.slice(Math.max(0, s - 32), s), suffix: text.slice(e, e + 32) }, pdfQuads: a?.pdfQuads };
+        },
       };
     }
   }
 
-  async selectionToAnchor(): Promise<Anchor | null> {
-    return null;
+  // ---- selection ------------------------------------------------------------------------------
+
+  private onSelectionChange(): void {
+    clearTimeout(this.selTimer);
+    this.selTimer = window.setTimeout(() => {
+      const sel = window.getSelection();
+      const inside = !!sel && sel.rangeCount > 0 && !sel.isCollapsed && !!this.root?.contains(sel.anchorNode) && !!this.root.contains(sel.focusNode);
+      const next = inside ? this.buildSelection(sel!.getRangeAt(0)) : null;
+      if (!next && !this.selection) return;
+      this.selection = next;
+      this.emit('selection', next);
+    }, 120);
+  }
+
+  /** The OCR words covered by `range` on the page where it starts, as an anchor plus on-screen rects (target space). */
+  private buildSelection(range: Range): EngineSelection | null {
+    const start = range.startContainer;
+    const box = (start instanceof Element ? start : start.parentElement)?.closest<HTMLElement>('.q-pg');
+    const words = box && this.ocr.get(Number(box.dataset.page));
+    if (!box || !words || !this.root) return null;
+    const idx = [...box.querySelectorAll<HTMLElement>('.q-ocr span')].filter((s) => range.intersectsNode(s)).map((s) => Number(s.dataset.i));
+    if (!idx.length) return null;
+    const page = Number(box.dataset.page);
+    const t = this.root.getBoundingClientRect();
+    const pb = box.getBoundingClientRect();
+    const rects = [...range.getClientRects()]
+      .filter((r) => r.width > 0 && r.height > 0 && r.left + r.width / 2 >= pb.left && r.left + r.width / 2 <= pb.right && r.top + r.height / 2 >= pb.top && r.top + r.height / 2 <= pb.bottom)
+      .map((r) => ({ x: r.left - t.left, y: r.top - t.top, width: r.width, height: r.height }));
+    const anchor = anchorFor(page, words, Math.min(...idx), Math.max(...idx), this.dimsArr[page]?.h ?? 0);
+    return { anchor, text: anchor.quote.exact, rects };
+  }
+
+  async selectionToAnchor(selection?: Selection | null): Promise<Anchor | null> {
+    const sel = selection ?? window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed || !this.root?.contains(sel.anchorNode)) return null;
+    return this.buildSelection(sel.getRangeAt(0))?.anchor ?? null;
   }
   getSelection(): EngineSelection | null {
-    return null;
+    return this.selection;
   }
-  clearSelection(): void {}
+  clearSelection(): void {
+    window.getSelection()?.removeAllRanges();
+    if (this.selection) {
+      this.selection = null;
+      this.emit('selection', null);
+    }
+  }
 
   /** Page-level anchor (bookmarks): the page, no quote. */
   pageAnchor(page = this.view?.page ?? 0): Anchor {
     return { locator: { kind: 'fixed', page, y: 0 }, quote: { exact: '', prefix: '', suffix: '' } };
   }
 
+  /** Word quads for an anchor: stored quads, else its quote found in the OCR text of the page (or a neighbour). */
+  private resolve(a: Anchor, wide: boolean): { page: number; quads: Quad[]; exact: boolean; updated?: Anchor } | null {
+    if (a.locator.kind !== 'fixed') return null;
+    const home = a.locator.page;
+    if (a.pdfQuads?.length) return { page: home, quads: a.pdfQuads, exact: true };
+    for (const page of wide ? [home, home + 1, home - 1, home + 2, home - 2] : [home]) {
+      const ws = this.ocr.get(page);
+      const at = ws ? findQuote(wordText(ws), a.quote) : -1;
+      const r = ws && at >= 0 ? wordsInRange(ws, at, at + a.quote.exact.length) : null;
+      if (!ws || !r) continue;
+      const found = anchorFor(page, ws, r[0], r[1], this.dimsArr[page]?.h ?? 0);
+      return { page, quads: found.pdfQuads!, exact: page === home, updated: page === home ? undefined : found };
+    }
+    return null;
+  }
+
   async anchorToRanges(anchor: Anchor): Promise<ResolvedAnchor | null> {
     const l = anchor.locator;
     if (l.kind !== 'fixed' || l.page < 0 || l.page >= this.count) return null;
-    return { regions: [{ page: l.page, rects: [] }], exact: true };
+    const r = this.resolve(anchor, true);
+    if (!r) return { regions: [{ page: l.page, rects: [] }], exact: true };
+    const t = this.root?.getBoundingClientRect();
+    const box = this.root?.querySelector<HTMLElement>(`.q-pg[data-page="${r.page}"]`);
+    const f = this.frame(r.page);
+    let rects: Rect[] = [];
+    if (box && t && f) {
+      const b = box.getBoundingClientRect();
+      rects = r.quads.map((q) => {
+        const [x, y, w, h] = rotateBox(f.rot, f.W, f.H, q) as [number, number, number, number];
+        return { x: b.left - t.left + (x / f.Wr) * b.width, y: b.top - t.top + (y / f.Hr) * b.height, width: (w / f.Wr) * b.width, height: (h / f.Hr) * b.height };
+      });
+    }
+    return { regions: [{ page: r.page, rects }], exact: r.exact, updated: r.updated };
   }
 
-  setDecorations(_layer: DecorationLayer, _items: Decoration[]): void {}
+  // ---- decorations and the OCR layer ------------------------------------------------------------
+
+  setDecorations(layer: DecorationLayer, items: Decoration[]): void {
+    this.decos[layer] = items;
+    this.redraw(['deco']);
+  }
+
+  private rot(): Rotation {
+    return this.pres.flow === 'scrolled' ? 0 : this.pres.rotation;
+  }
+
+  /** Raw (image) and displayed (rotated) size of a page; null until it has decoded. */
+  private frame(page: number): { W: number; H: number; Wr: number; Hr: number; rot: Rotation } | null {
+    const d = this.dimsArr[page];
+    if (!d) return null;
+    const rot = this.rot();
+    const sw = rot % 180 !== 0;
+    return { W: d.w, H: d.h, Wr: sw ? d.h : d.w, Hr: sw ? d.w : d.h, rot };
+  }
+
+  /** Image-pixel quad -> percentage box of the displayed page (survives zoom without redrawing). */
+  private pct(f: NonNullable<ReturnType<ComicEngine['frame']>>, q: Quad): { left: number; top: number; width: number; height: number } {
+    const [x, y, w, h] = rotateBox(f.rot, f.W, f.H, q) as [number, number, number, number];
+    return { left: (x / f.Wr) * 100, top: (y / f.Hr) * 100, width: (w / f.Wr) * 100, height: (h / f.Hr) * 100 };
+  }
+
+  /** Redraw the OCR and/or decoration layers of the shown pages (all, or just `only`). */
+  private redraw(kinds: ('ocr' | 'deco')[], only?: number): void {
+    if (!this.root) return;
+    for (const box of this.root.querySelectorAll<HTMLElement>('.q-pg')) {
+      if (only !== undefined && Number(box.dataset.page) !== only) continue;
+      if (kinds.includes('deco')) this.drawDeco(box);
+      if (kinds.includes('ocr')) this.drawOcr(box);
+    }
+  }
+
+  /** Transparent positioned spans (like pdf.js' text layer) so the browser's own selection, copy and drag work on OCR'd pages. */
+  private drawOcr(box: HTMLElement): void {
+    const layer = box.querySelector('.q-ocr');
+    const page = Number(box.dataset.page);
+    const words = this.ocr.get(page);
+    const f = this.frame(page);
+    if (!layer) return;
+    layer.replaceChildren();
+    if (!words?.length || !f) return;
+    const frag = document.createDocumentFragment();
+    words.forEach((w, i) => {
+      const b = this.pct(f, [w.x, w.y, w.width, w.height]);
+      const s = document.createElement('span');
+      s.textContent = `${w.text} `;
+      s.dataset.i = String(i);
+      s.style.cssText = `left:${b.left}%;top:${b.top}%;width:${b.width}%;height:${b.height}%;font-size:${b.height * 0.85}cqh`;
+      frag.append(s);
+    });
+    layer.append(frag);
+  }
+
+  private drawDeco(box: HTMLElement): void {
+    const layerEl = box.querySelector('.q-deco');
+    const page = Number(box.dataset.page);
+    const f = this.frame(page);
+    if (!layerEl) return;
+    const theme = this.pres.theme;
+    const frag = document.createDocumentFragment();
+    for (const layer of ['annotations', 'search', 'speech'] as DecorationLayer[]) {
+      for (const d of this.decos[layer]) {
+        if (!f || d.anchor.locator.kind !== 'fixed' || d.anchor.locator.page !== page) continue;
+        const res = this.resolve(d.anchor, false);
+        if (!res) continue;
+        const style = d.style;
+        const color = 'color' in style ? theme.highlight[style.color] : theme.accent;
+        for (const q of res.quads) {
+          const b = this.pct(f, q);
+          const el = document.createElement('div');
+          el.className = `q-d q-d-${style.type}`;
+          el.dataset.deco = d.id;
+          el.dataset.layer = layer;
+          el.style.cssText = `left:${b.left}%;top:${b.top}%;width:${b.width}%;height:${b.height}%;--c:${color};`;
+          switch (style.type) {
+            case 'highlight': case 'note': el.style.background = `color-mix(in srgb, ${color} 42%, transparent)`; break;
+            case 'search-hit': el.style.background = `color-mix(in srgb, ${theme.highlight[0]} ${style.current ? 85 : 55}%, transparent)`; if (style.current) el.classList.add('q-d-current'); break;
+            case 'speech-word': el.style.background = `color-mix(in srgb, ${theme.accent} 45%, transparent)`; break;
+            case 'speech-sentence': el.style.background = `color-mix(in srgb, ${theme.accent} 16%, transparent)`; break;
+          }
+          frag.append(el);
+          if (style.type === 'bookmark') break;
+        }
+      }
+    }
+    layerEl.replaceChildren(frag);
+  }
+
+  /** The smallest drawn annotation under a click (root-relative px), as a `decorationclick` payload. */
+  private hitDecoration(x: number, y: number): EngineEventMap['decorationclick'] | null {
+    const root = this.root;
+    if (!root) return null;
+    const rr = root.getBoundingClientRect();
+    let best: { el: HTMLElement; area: number } | null = null;
+    for (const el of root.querySelectorAll<HTMLElement>('.q-d[data-layer="annotations"]:not(.q-d-bookmark)')) {
+      const r = el.getBoundingClientRect();
+      if (x + rr.left < r.left || x + rr.left > r.right || y + rr.top < r.top || y + rr.top > r.bottom) continue;
+      if (!best || r.width * r.height < best.area) best = { el, area: r.width * r.height };
+    }
+    if (!best) return null;
+    const r = best.el.getBoundingClientRect();
+    return { layer: 'annotations', id: best.el.dataset.deco!, rect: { x: r.left - rr.left, y: r.top - rr.top, width: r.width, height: r.height } };
+  }
 
   /**
    * Hook for a synthetic text layer (OCR, T12). Words are in image pixels of the page, origin top-left.
-   * Stored per page and searchable / streamable (`search`, `getText`, `textStream`); nothing is drawn
-   * over the page, so there is no on-page selection or highlight for comics.
+   * Stored per page, searchable / streamable (`search`, `getText`, `textStream`), and drawn as an invisible
+   * selectable text layer with decorations (highlights, search hits, speech word) over the page.
    */
   setTextLayer(page: number, words: OcrWord[]): void {
     if (words.length) this.ocr.set(page, words);
     else this.ocr.delete(page);
     if (this.handle) {
       this.handle.hasText = this.ocr.size > 0;
-      this.handle.capabilities.search = this.handle.capabilities.textStream = this.ocr.size > 0;
+      this.handle.capabilities.search = this.handle.capabilities.textStream = this.handle.capabilities.selection = this.ocr.size > 0;
     }
+    this.redraw(['ocr', 'deco'], page);
   }
   /** Words are in decoded-image pixels (see `setTextLayer`), unrotated. */
   async ocrPageSize(page: number): Promise<{ width: number; height: number; rotate: 0 }> {

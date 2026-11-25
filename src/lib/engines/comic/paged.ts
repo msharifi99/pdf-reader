@@ -10,6 +10,7 @@ interface Shown {
   /** Logical page numbers, reading order. */
   pages: number[];
   canvases: HTMLCanvasElement[];
+  boxes: HTMLElement[];
   rtl: boolean;
   layout: SpreadLayout | null;
 }
@@ -152,7 +153,7 @@ export class PagedView implements PageView {
     const rtl = this.host.settings().direction === 'rtl';
     const el = document.createElement('div');
     el.className = 'q-view';
-    el.style.cssText = 'position:absolute;inset:0;overflow:auto;display:flex;scrollbar-width:none;touch-action:pan-x pan-y;';
+    el.style.cssText = 'position:absolute;inset:0;overflow:auto;display:flex;scrollbar-width:none;touch-action:none;';
     const spread = document.createElement('div');
     spread.className = 'q-spread';
     // margin:auto centres small content and still lets large content scroll from its edge.
@@ -163,14 +164,23 @@ export class PagedView implements PageView {
       c.dataset.page = String(p);
       c.setAttribute('role', 'img');
       c.setAttribute('aria-label', `Page ${p + 1} of ${this.host.count}`);
-      c.style.cssText = 'display:block;flex:none;';
-      spread.append(c);
+      c.style.cssText = 'display:block;';
       return c;
     });
+    const boxes = canvases.map((c) => {
+      const b = document.createElement('div');
+      b.className = 'q-pg';
+      b.dataset.page = c.dataset.page;
+      b.style.cssText = 'position:relative;flex:none;container-type:size;';
+      b.append(c);
+      spread.append(b);
+      return b;
+    });
     el.append(spread);
-    const shown: Shown = { el, spread, pages, canvases, rtl, layout: null };
+    const shown: Shown = { el, spread, pages, canvases, boxes, rtl, layout: null };
     this.root.append(el);
     this.fit(shown, true);
+    boxes.forEach((b, i) => this.host.mounted(pages[i]!, b));
     if (rtl) el.scrollLeft = el.scrollWidth;
 
     this.root.querySelectorAll('.q-view').forEach((e) => e !== el && e !== prev?.el && e.remove());
@@ -199,8 +209,10 @@ export class PagedView implements PageView {
     const draw = (bms: ImageBitmap[]) => {
       if (this.cur !== shown && shown.el.isConnected === false) return;
       shown.canvases.forEach((c, i) => {
+        shown.boxes[i]!.style.width = `${layout.pages[i]!.w}px`;
+        shown.boxes[i]!.style.height = `${layout.pages[i]!.h}px`;
         const bm = bms[i];
-        if (bm && bm.width > 0) this.host.painter.paint(c, bm, layout.pages[i]!.w, layout.pages[i]!.h, s.tint);
+        if (bm && bm.width > 0) this.host.painter.paint(c, bm, layout.pages[i]!.w, layout.pages[i]!.h, s.tint, s.rotation);
         else {
           c.style.width = `${layout.pages[i]!.w}px`;
           c.style.height = `${layout.pages[i]!.h}px`;

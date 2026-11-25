@@ -6,7 +6,7 @@ import type { Size } from './layout';
 export interface ViewHost {
   count: number;
   readonly painter: Painter;
-  settings(): { fit: Fit; zoom: number; spread: Spread; direction: ReadingDirection; gap: number; tint: TintState };
+  settings(): { rotation: 0 | 90 | 180 | 270; fit: Fit; zoom: number; spread: Spread; direction: ReadingDirection; gap: number; tint: TintState };
   dims(page: number): Size | undefined;
   /** Sync cache hit (touches LRU recency), else undefined. */
   cached(page: number): ImageBitmap | undefined;
@@ -19,6 +19,8 @@ export interface ViewHost {
   presentation(p: Partial<Presentation>): void;
   pointer(ev: EngineEventMap['pointer']): void;
   layoutChanged(): void;
+  /** A page box (`.q-pg`, holding the canvas) was created: the engine adds the OCR and decoration layers. */
+  mounted(page: number, box: HTMLElement): void;
 }
 
 export interface PageView {

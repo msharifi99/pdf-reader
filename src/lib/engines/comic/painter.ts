@@ -14,7 +14,7 @@ const MAX_BACKING = 4096;
 export class Painter {
   private gl: GlTinter | null | undefined;
 
-  paint(canvas: HTMLCanvasElement, bitmap: ImageBitmap, cssW: number, cssH: number, tint: TintState): void {
+  paint(canvas: HTMLCanvasElement, bitmap: ImageBitmap, cssW: number, cssH: number, tint: TintState, rotation = 0): void {
     const dpr = window.devicePixelRatio || 1;
     const k = Math.min(1, MAX_BACKING / Math.max(cssW * dpr, cssH * dpr));
     const w = Math.max(1, Math.round(cssW * dpr * k));
@@ -29,19 +29,32 @@ export class Painter {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.filter = 'none';
+    ctx.clearRect(0, 0, w, h);
+    // cssW/cssH are the displayed (rotated) size; the bitmap is drawn pre-rotation around the centre.
+    const swap = rotation % 180 !== 0;
+    const draw = (src: CanvasImageSource) => {
+      if (!rotation) return ctx.drawImage(src, 0, 0, w, h);
+      const dw = swap ? h : w;
+      const dh = swap ? w : h;
+      ctx.save();
+      ctx.translate(w / 2, h / 2);
+      ctx.rotate((rotation * Math.PI) / 180);
+      ctx.drawImage(src, -dw / 2, -dh / 2, dw, dh);
+      ctx.restore();
+    };
     if (tint.mode === 'smart') {
       this.gl ??= GlTinter.create();
       if (this.gl) {
-        ctx.drawImage(this.gl.tint(bitmap, tint.bg, tint.fg, []), 0, 0, w, h);
+        draw(this.gl.tint(bitmap, tint.bg, tint.fg, []));
       } else {
-        ctx.drawImage(bitmap, 0, 0, w, h);
+        draw(bitmap);
         const img = ctx.getImageData(0, 0, w, h);
         smartTintImageData(img, tint.bg, tint.fg, []);
         ctx.putImageData(img, 0, 0);
       }
     } else {
       if (tint.mode === 'invert') ctx.filter = INVERT_FILTER;
-      ctx.drawImage(bitmap, 0, 0, w, h);
+      draw(bitmap);
       ctx.filter = 'none';
     }
   }
