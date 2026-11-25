@@ -23,20 +23,225 @@ export const commands = {
 	 *  snap-layout flyout over it. Pass width 0 to disable (e.g. while fullscreen).
 	 */
 	windowSetMaxbtnRect: (x: number, y: number, w: number, h: number, options?: InvokeOptions) => __TAURI_INVOKE<void>("window_set_maxbtn_rect", { x, y, w, h }, options),
+	/**
+	 *  Add (or re-link) the file/folder/image to the library and return it with its saved progress.
+	 *  A folder opens as a book over its images; a single image opens its folder, `startImage` set.
+	 */
+	openDocument: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<OpenedDocument>("open_document", { path }, options),
+	listBooks: (query: ListQuery, options?: InvokeOptions) => __TAURI_INVOKE<Book[]>("list_books", { query }, options),
+	getBook: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<Book>("get_book", { id }, options),
+	continueReading: (limit: number, options?: InvokeOptions) => __TAURI_INVOKE<Book[]>("continue_reading", { limit }, options),
+	/**  Hides the book from the library; never touches the file. */
+	removeBook: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("remove_book", { id }, options),
+	setBookStatus: (id: string, status: Status, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_book_status", { id, status }, options),
+	/**  Shallow-merge `patch` into the book's presentation settings (`null` removes a key). Returns the result. */
+	setBookSettings: (id: string, patch: Json, options?: InvokeOptions) => __TAURI_INVOKE<Json>("set_book_settings", { id, patch }, options),
+	setBookMetadata: (id: string, patch: MetadataPatch, options?: InvokeOptions) => __TAURI_INVOKE<Book>("set_book_metadata", { id, patch }, options),
+	/**  Store a cover image (WebP from the frontend). Empty bytes = "can't make one", stops re-asking. */
+	saveCover: (id: string, bytes: number[], options?: InvokeOptions) => __TAURI_INVOKE<Book>("save_cover", { id, bytes }, options),
+	coverUrl: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<string | null>("cover_url", { id }, options),
+	/**  Books with no cover yet whose file is available: render page 1 / first image and `save_cover`. */
+	booksNeedingCovers: (options?: InvokeOptions) => __TAURI_INVOKE<Book[]>("books_needing_covers", undefined, options),
+	revealInExplorer: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("reveal_in_explorer", { id }, options),
+	/**  Naturally sorted image files in `path` (or in the folder containing `path` if it is a file). */
+	listImageFolder: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<string[]>("list_image_folder", { path }, options),
+	listCollections: (options?: InvokeOptions) => __TAURI_INVOKE<Collection[]>("list_collections", undefined, options),
+	createCollection: (name: string, options?: InvokeOptions) => __TAURI_INVOKE<Collection>("create_collection", { name }, options),
+	renameCollection: (id: string, name: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("rename_collection", { id, name }, options),
+	deleteCollection: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_collection", { id }, options),
+	addToCollection: (bookId: string, collectionId: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("add_to_collection", { bookId, collectionId }, options),
+	removeFromCollection: (bookId: string, collectionId: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("remove_from_collection", { bookId, collectionId }, options),
+	/**  Cheap upsert; also moves the book to reading/finished (>= 99.5%). The UI debounces to 2 s. */
+	saveProgress: (bookId: string, locator: Json, fraction: number | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("save_progress", { bookId, locator, fraction }, options),
+	getProgress: (bookId: string, options?: InvokeOptions) => __TAURI_INVOKE<Progress | null>("get_progress", { bookId }, options),
+	startSession: (bookId: string, options?: InvokeOptions) => __TAURI_INVOKE<number>("start_session", { bookId }, options),
+	/**  `unit`: "words" or "pages". */
+	endSession: (sessionId: number, amount: number | null, unit: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("end_session", { sessionId, amount, unit }, options),
+	readingSpeed: (bookId: string | null, options?: InvokeOptions) => __TAURI_INVOKE<ReadingSpeed>("reading_speed", { bookId }, options),
+	createAnnotation: (annotation: NewAnnotation, options?: InvokeOptions) => __TAURI_INVOKE<Annotation>("create_annotation", { annotation }, options),
+	updateAnnotation: (id: string, patch: AnnotationPatch, options?: InvokeOptions) => __TAURI_INVOKE<Annotation>("update_annotation", { id, patch }, options),
+	/**  Soft delete: `restore_annotation` brings it back (undo). */
+	deleteAnnotation: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_annotation", { id }, options),
+	restoreAnnotation: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<Annotation>("restore_annotation", { id }, options),
+	/**  Live annotations of a book, ordered by position. */
+	listAnnotations: (bookId: string, options?: InvokeOptions) => __TAURI_INVOKE<Annotation[]>("list_annotations", { bookId }, options),
+	listAllAnnotations: (query: string | null, options?: InvokeOptions) => __TAURI_INVOKE<AnnotationWithBook[]>("list_all_annotations", { query }, options),
+	getSetting: (key: string, options?: InvokeOptions) => __TAURI_INVOKE<Json | null>("get_setting", { key }, options),
+	/**  `null` deletes the key. */
+	setSetting: (key: string, value: Json, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_setting", { key, value }, options),
+	getAllSettings: (options?: InvokeOptions) => __TAURI_INVOKE<{ [key in string]: Json }>("get_all_settings", undefined, options),
+	listWatchedFolders: (options?: InvokeOptions) => __TAURI_INVOKE<string[]>("list_watched_folders", undefined, options),
+	addWatchedFolder: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("add_watched_folder", { path }, options),
+	removeWatchedFolder: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("remove_watched_folder", { path }, options),
+	rescanWatchedFolders: (options?: InvokeOptions) => __TAURI_INVOKE<null>("rescan_watched_folders", undefined, options),
+	listSystemFonts: (options?: InvokeOptions) => __TAURI_INVOKE<string[]>("list_system_fonts", undefined, options),
+	searchLibraryText: (query: string, limit: number, options?: InvokeOptions) => __TAURI_INVOKE<TextHit[]>("search_library_text", { query, limit }, options),
+	backup: (destPath: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("backup", { destPath }, options),
+	/**  Replaces library data from a `.quire-backup`; emits `backup-restored` (reload the UI). */
+	restore: (srcPath: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("restore", { srcPath }, options),
 };
 
 /** Events */
 export const events = {
+	backupRestored: makeEvent<BackupRestored, BackupRestored>("backup-restored"),
+	ingestProgress: makeEvent<IngestProgress, IngestProgress>("ingest-progress"),
+	libraryChanged: makeEvent<LibraryChanged, LibraryChanged>("library-changed"),
 	maxButtonHover: makeEvent<MaxButtonHover, MaxButtonHover>("max-button-hover"),
 	openFiles: makeEvent<OpenFiles, OpenFiles>("open-files"),
 };
 
 /* Types */
+export type Annotation = {
+	id: string,
+	bookId: string,
+	type: AnnotationKind,
+	color: string | null,
+	anchor: Json,
+	note: string | null,
+	label: string | null,
+	createdAt: number,
+	updatedAt: number,
+	deletedAt: number | null,
+};
+
+export type AnnotationKind = "bookmark" | "highlight" | "note";
+
+export type AnnotationPatch = {
+	type?: AnnotationKind | null,
+	color?: string | null,
+	anchor?: Json | null,
+	note?: string | null,
+	label?: string | null,
+};
+
+export type AnnotationWithBook = {
+	annotation: Annotation,
+	bookTitle: string,
+	bookAuthor: string,
+};
+
+/**  The database and covers were replaced by `restore`: reload everything. */
+export type BackupRestored = boolean;
+
+export type Book = {
+	id: string,
+	fingerprint: string,
+	format: Format,
+	title: string,
+	author: string,
+	/**  `http://quire.localhost/cover/<id>?v=<rev>`; absent until a cover exists. */
+	coverUrl: string | null,
+	/**  True when no cover is stored yet; the frontend should render one and call `save_cover`. */
+	needsCover: boolean,
+	pageCount: number | null,
+	wordCount: number | null,
+	status: Status,
+	addedAt: number,
+	lastOpenedAt: number | null,
+	fileSize: number,
+	/**  Per-book presentation settings (flow, spread, zoom, fit, rotation, tint, direction, typography, comic mode). */
+	settings: Json,
+	/**  At least one known path currently exists. */
+	available: boolean,
+	/**  Best known path (available first). For image books this is the folder. */
+	path: string | null,
+	progress: number | null,
+	/**  Collection ids. */
+	collections: string[],
+};
+
+export type Collection = {
+	id: string,
+	name: string,
+	count: number,
+};
+
+export type Error = {
+	code: ErrorCode,
+	message: string,
+};
+
+export type ErrorCode = "NotFound" | "Unsupported" | "Corrupt" | "Io" | "Db" | "PasswordRequired" | "Invalid";
+
+export type Format = "pdf" | "epub" | "mobi" | "azw3" | "fb2" | "fbz" | "cbz" | "cbr" | "image";
+
+/**  Watched-folder scan progress. */
+export type IngestProgress = {
+	done: number,
+	total: number,
+};
+
+/**  Arbitrary JSON (locators, anchors, settings). `unknown` on the TS side; callers cast. */
+export type Json = unknown;
+
+/**  Fired when books were added, re-linked, or changed availability. Payload: book ids. */
+export type LibraryChanged = string[];
+
+export type ListQuery = {
+	sort?: SortKey,
+	/**  Flip the natural direction of `sort`. */
+	reverse?: boolean,
+	formats?: Format[],
+	status?: Status | null,
+	collection?: string | null,
+	/**  Matches title/author, every word must hit. */
+	text?: string | null,
+};
+
 /**  Fired when the cursor enters/leaves the maximize button (snap-layout hit area). */
 export type MaxButtonHover = boolean;
 
+export type MetadataPatch = {
+	title?: string | null,
+	author?: string | null,
+	pageCount?: number | null,
+	wordCount?: number | null,
+	/**  True when the user typed these values: they then win over later automatic extraction. */
+	user?: boolean,
+};
+
+export type NewAnnotation = {
+	bookId: string,
+	type: AnnotationKind,
+	color: string | null,
+	anchor: Json,
+	note: string | null,
+	label: string | null,
+};
+
 /**  Files the user asked to open (second launch, drag-drop). Paths are already allow-listed. */
 export type OpenFiles = string[];
+
+export type OpenedDocument = {
+	book: Book,
+	progress: Progress | null,
+	/**  When a single image was opened: that image's absolute path (the book is its folder). */
+	startImage: string | null,
+};
+
+export type Progress = {
+	bookId: string,
+	locator: Json,
+	fraction: number,
+	updatedAt: number,
+};
+
+export type ReadingSpeed = {
+	wordsPerMinute: number,
+	minutesPerPage: number,
+};
+
+export type SortKey = "recent" | "added" | "title" | "author" | "progress";
+
+export type Status = "unread" | "reading" | "finished";
+
+export type TextHit = {
+	bookId: string,
+	bookTitle: string,
+	locator: Json,
+	/**  Snippet with `<mark>..</mark>` around matches; everything else is plain text. */
+	snippet: string,
+};
 
 /* Tauri Specta runtime */
 type EventEmit<T> = [T] extends [null] ? () => Promise<void> : (payload: T) => Promise<void>;

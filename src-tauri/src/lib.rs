@@ -1,3 +1,4 @@
+pub mod backend;
 mod commands;
 pub mod protocol;
 mod window;
@@ -9,6 +10,7 @@ use specta_typescript::Typescript;
 use tauri::{AppHandle, DragDropEvent, Manager, WindowEvent};
 use tauri_specta::{collect_commands, collect_events, Builder, Event};
 
+use backend::{commands as bc, BackupRestored, Core, CoreEvent, IngestProgress, LibraryChanged};
 use commands::LaunchFiles;
 use protocol::AllowList;
 
@@ -21,6 +23,7 @@ const BINDINGS_PATH: &str = "../src/lib/core/bindings.ts";
 /// The one definition of commands + events. T4 and later tasks add to these lists.
 pub fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
+        .disable_serde_phases()
         .commands(collect_commands![
             commands::app_version,
             commands::take_launch_files,
@@ -32,8 +35,49 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::window_toggle_fullscreen,
             commands::window_start_drag,
             commands::window_set_maxbtn_rect,
+            bc::open_document,
+            bc::list_books,
+            bc::get_book,
+            bc::continue_reading,
+            bc::remove_book,
+            bc::set_book_status,
+            bc::set_book_settings,
+            bc::set_book_metadata,
+            bc::save_cover,
+            bc::cover_url,
+            bc::books_needing_covers,
+            bc::reveal_in_explorer,
+            bc::list_image_folder,
+            bc::list_collections,
+            bc::create_collection,
+            bc::rename_collection,
+            bc::delete_collection,
+            bc::add_to_collection,
+            bc::remove_from_collection,
+            bc::save_progress,
+            bc::get_progress,
+            bc::start_session,
+            bc::end_session,
+            bc::reading_speed,
+            bc::create_annotation,
+            bc::update_annotation,
+            bc::delete_annotation,
+            bc::restore_annotation,
+            bc::list_annotations,
+            bc::list_all_annotations,
+            bc::get_setting,
+            bc::set_setting,
+            bc::get_all_settings,
+            bc::list_watched_folders,
+            bc::add_watched_folder,
+            bc::remove_watched_folder,
+            bc::rescan_watched_folders,
+            bc::list_system_fonts,
+            bc::search_library_text,
+            bc::backup,
+            bc::restore,
         ])
-        .events(collect_events![OpenFiles, window::MaxButtonHover])
+        .events(collect_events![OpenFiles, window::MaxButtonHover, LibraryChanged, IngestProgress, BackupRestored])
 }
 
 pub fn export_bindings(builder: &Builder<tauri::Wry>) {
@@ -83,6 +127,18 @@ pub fn run() {
         .setup(move |app| {
             builder.mount_events(app);
             let handle = app.handle();
+            let data_dir = app.path().app_data_dir().expect("no app data dir");
+            let h = handle.clone();
+            let emit: backend::Emitter = std::sync::Arc::new(move |e| {
+                let _ = match e {
+                    CoreEvent::LibraryChanged(ids) => LibraryChanged(ids).emit(&h),
+                    CoreEvent::IngestProgress { done, total } => IngestProgress { done, total }.emit(&h),
+                    CoreEvent::BackupRestored => BackupRestored(true).emit(&h),
+                };
+            });
+            let core = std::sync::Arc::new(Core::new(&data_dir, emit).expect("couldn't open the library database"));
+            core.start();
+            app.manage(core);
             {
                 // Launch files are allow-listed now; the frontend collects them via take_launch_files.
                 let allow = app.state::<AllowList>();

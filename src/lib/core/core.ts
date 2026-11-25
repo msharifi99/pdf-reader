@@ -15,6 +15,12 @@ export interface CoreEvents {
   onOpenFiles(cb: (paths: string[]) => void): Promise<Unlisten>;
   /** Cursor entered/left the native maximize hit area (snap layouts); the webview can't see it. */
   onMaxButtonHover(cb: (hover: boolean) => void): Promise<Unlisten>;
+  /** Books were added, re-linked or changed availability (ids). Re-query the library. */
+  onLibraryChanged(cb: (bookIds: string[]) => void): Promise<Unlisten>;
+  /** Watched-folder scan progress. */
+  onIngestProgress(cb: (p: { done: number; total: number }) => void): Promise<Unlisten>;
+  /** `restore` replaced the database: reload everything. */
+  onBackupRestored(cb: () => void): Promise<Unlisten>;
 }
 
 /** A readable file: by absolute path (must be allowed) or by library book id. */
@@ -43,6 +49,9 @@ export const core: CoreApi = new Proxy({} as CoreApi, {
 export const coreEvents: CoreEvents = {
   onOpenFiles: (cb) => current().events.onOpenFiles(cb),
   onMaxButtonHover: (cb) => current().events.onMaxButtonHover(cb),
+  onLibraryChanged: (cb) => current().events.onLibraryChanged(cb),
+  onIngestProgress: (cb) => current().events.onIngestProgress(cb),
+  onBackupRestored: (cb) => current().events.onBackupRestored(cb),
 };
 
 /**
@@ -52,6 +61,11 @@ export const coreEvents: CoreEvents = {
  */
 export function fileUrl(ref: FileRef): string {
   return current().fileUrl(ref);
+}
+
+/** Cover URL for a book id (`Book.coverUrl` is already set on every Book; use this when you only have an id). */
+export function coverUrl(bookId: string, rev = 0): string {
+  return current().mode === 'tauri' ? `http://quire.localhost/cover/${encodeURIComponent(bookId)}?v=${rev}` : `/fixtures/covers/${bookId}.webp`;
 }
 
 export function coreMode(): 'tauri' | 'fake' {
@@ -71,6 +85,9 @@ export async function initCore(): Promise<CoreRuntime> {
       events: {
         onOpenFiles: (cb) => events.openFiles.listen((e) => cb(e.payload)),
         onMaxButtonHover: (cb) => events.maxButtonHover.listen((e) => cb(e.payload)),
+        onLibraryChanged: (cb) => events.libraryChanged.listen((e) => cb(e.payload)),
+        onIngestProgress: (cb) => events.ingestProgress.listen((e) => cb(e.payload)),
+        onBackupRestored: (cb) => events.backupRestored.listen(() => cb()),
       },
       fileUrl: (ref) =>
         'path' in ref

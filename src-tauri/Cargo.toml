@@ -28,6 +28,15 @@ thiserror = "2"
 anyhow = "1"
 percent-encoding = "2"
 mime_guess = "2"
+rusqlite = { version = "0.37", features = ["bundled"] }
+blake3 = "1"
+zip = { version = "4", default-features = false, features = ["deflate"] }
+quick-xml = "0.38"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp"] }
+base64 = "0.22"
+notify-debouncer-full = "0.5"
+uuid = { version = "1", features = ["v4"] }
+walkdir = "2"
 
 [target.'cfg(windows)'.dependencies]
 window-vibrancy = "0.8"
@@ -38,6 +47,7 @@ windows = { version = "0.61", features = [
   "Win32_Graphics_Gdi",
   "Win32_System_LibraryLoader",
   "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_Graphics_DirectWrite",
 ] }
 
 [profile.release]
@@ -45,3 +55,6 @@ lto = true
 codegen-units = 1
 opt-level = "s"
 strip = true
+
+[dev-dependencies]
+tempfile = "3"

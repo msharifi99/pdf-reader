@@ -13,10 +13,12 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use tauri::http::{header, Method, Request, Response, StatusCode};
 use tauri::{Manager, Runtime, UriSchemeContext, UriSchemeResponder};
+
+use crate::backend::Core;
 
 pub const SCHEME: &str = "quire";
 /// Largest body returned for one request.
@@ -37,9 +39,9 @@ impl AllowList {
     }
 }
 
-/// Resolves `/book/<id>` to a file path. T4 replaces the body.
-pub fn resolve_book<R: Runtime>(_app: &tauri::AppHandle<R>, _id: &str) -> Option<PathBuf> {
-    None
+/// Resolves `/book/<id>` to its first available library path.
+pub fn resolve_book<R: Runtime>(app: &tauri::AppHandle<R>, id: &str) -> Option<PathBuf> {
+    app.try_state::<Arc<Core>>()?.db.resolve_book_path(id)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -178,12 +180,23 @@ fn handle<R: Runtime>(app: &tauri::AppHandle<R>, req: &Request<Vec<u8>>) -> Resp
         return err(StatusCode::METHOD_NOT_ALLOWED);
     }
     let uri = req.uri();
+    if let Some(id) = uri.path().strip_prefix("/cover/") {
+        let file = app.try_state::<Arc<Core>>().and_then(|c| c.db.cover_file(id));
+        let Some(file) = file else { return err(StatusCode::NOT_FOUND) };
+        let mut r = serve_file(&file, None, head_only);
+        r.headers_mut().insert(header::CACHE_CONTROL, "public, max-age=31536000, immutable".parse().unwrap());
+        return r;
+    }
+    let by_book = uri.path().starts_with("/book/");
     let path = match uri.path() {
         "/file" => query_param(uri, "path").map(PathBuf::from),
         p => p.strip_prefix("/book/").and_then(|id| resolve_book(app, id)),
     };
     let Some(path) = path else { return err(StatusCode::NOT_FOUND) };
-    if !app.state::<AllowList>().is_allowed(&path) {
+    let known = by_book
+        || app.state::<AllowList>().is_allowed(&path)
+        || app.try_state::<Arc<Core>>().is_some_and(|c| c.db.path_known(&path));
+    if !known {
         return err(StatusCode::FORBIDDEN);
     }
     let range = req.headers().get(header::RANGE).and_then(|v| v.to_str().ok());
