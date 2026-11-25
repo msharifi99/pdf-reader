@@ -1,11 +1,14 @@
 /** Svelte 5 reactive views over the singletons. Read these inside components / $derived / $effect. */
+import { untrack } from 'svelte';
 import { formatSequence } from './keys';
 import { commands, contextStack, keymap } from './instances';
 
 class CommandsState {
   #v = $state(0);
+  // untracked: registering a command inside an $effect must not make that effect depend on (and loop on) the counter
+  #bump = () => untrack(() => this.#v++);
   constructor() {
-    commands.subscribe(() => this.#v++);
+    commands.subscribe(() => this.#bump());
   }
   /** all visible commands; re-evaluates when commands register/unregister or MRU changes */
   get list() {
@@ -20,10 +23,12 @@ class CommandsState {
 
 class KeyState {
   #v = $state(0);
+  // untracked: registering a command inside an $effect must not make that effect depend on (and loop on) the counter
+  #bump = () => untrack(() => this.#v++);
   #pending = $state<string[]>([]);
   constructor() {
-    keymap.onChange(() => this.#v++);
-    contextStack.subscribe(() => this.#v++);
+    keymap.onChange(() => this.#bump());
+    contextStack.subscribe(() => this.#bump());
     keymap.onPending((p) => (this.#pending = p));
   }
   /** pending sequence prefix, e.g. ['g'] */

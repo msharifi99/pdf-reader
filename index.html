@@ -3,7 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
     <title>Quire</title>
+    <style>
+      /* first paint: the last theme's background (set below), Dark until a theme is known */
+      html { background: var(--bg, #1b1c1f); }
+      html[data-mica] { background: transparent; }
+    </style>
+    <script>
+      // Paint the last-used theme before any module loads, so launching never flashes.
+      try {
+        var b = JSON.parse(localStorage.getItem('quire.boot') || 'null');
+        if (b && b.vars) {
+          var r = document.documentElement;
+          for (var k in b.vars) k === 'color-scheme' ? (r.style.colorScheme = b.vars[k]) : r.style.setProperty(k, b.vars[k]);
+          r.dataset.theme = b.id;
+          r.dataset.themeKind = b.kind;
+          if (b.mica) r.dataset.mica = '';
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="app"></div>
