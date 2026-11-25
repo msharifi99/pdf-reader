@@ -31,6 +31,7 @@
   import BookCover from './BookCover.svelte';
   import { FORMAT_GROUPS, greeting, isDone } from './format';
   import { cancelLibrarySearch } from '../indexing/search';
+  import { allHighlights, HighlightsView } from '../annotations';
   import {
     filtersActive, lib, openHit, openLibraryBook, provideSearch, reload, searchContents, setPrefs, startCoverPassNow, visibleBooks, type ContentGroup,
   } from './library.svelte';
@@ -214,6 +215,7 @@
 </script>
 
 <div class="library" bind:this={scroller} data-testid="library-view" data-library-root>
+  {#if allHighlights.open}<HighlightsView />{:else}
   <div class="page">
     <header class="top">
       <h1>{greeting()}</h1>
@@ -242,6 +244,7 @@
               <Button {...attrs} variant="ghost" icon="sort" data-testid="sort-button">{sortLabel}</Button>
             {/snippet}
           </Menu>
+          <Button variant="ghost" icon="highlight" onclick={() => allHighlights.show()} data-testid="library-highlights">Highlights</Button>
           <Menu items={addItems} label="Add books" placement="bottom-end">
             {#snippet trigger(attrs)}
               <Button {...attrs} variant="secondary" icon="plus">Add</Button>
@@ -338,6 +341,7 @@
       {/if}
     {/if}
   </div>
+  {/if}
 </div>
 
 {#if lib.editing}<EditBookDialog book={lib.editing} />{/if}

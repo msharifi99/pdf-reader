@@ -6,6 +6,7 @@ import { initCore } from './lib/core/core';
 import { installKeyboard, keymap } from './lib/commands';
 import { settings } from './lib/stores/settings.svelte';
 import { installKeyCaptureHook } from './lib/shell/keyCapture';
+import './lib/annotations'; // highlights, notes, bookmarks (T11): reader overlay + library view
 
 applyBootTheme();
 await initCore();
