@@ -76,7 +76,8 @@
     );
     offs.push(commands.onError((err, cmd) => reportError(err, cmd ? `Couldn’t ${cmd.title.toLowerCase()}.` : undefined)));
 
-    const onError = (e: ErrorEvent) => reportError(e.error ?? e.message);
+    // ResizeObserver loop notices are benign browser warnings (layout settles next frame), not failures
+    const onError = (e: ErrorEvent) => void (/ResizeObserver loop/.test(e.message) || reportError(e.error ?? e.message));
     const onRejection = (e: PromiseRejectionEvent) => reportError(e.reason);
     window.addEventListener('error', onError);
     window.addEventListener('unhandledrejection', onRejection);

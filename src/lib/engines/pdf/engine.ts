@@ -369,7 +369,9 @@ export class PdfEngine implements Engine {
     const prevZoom = this.zoom;
     this.zoom = this.effectiveZoom(clamp(refRow, 0, Math.max(0, this.rows.length - 1)));
     const paginated = this.pres.flow === 'paginated';
-    root.classList.toggle('q-snap', paginated);
+    // snap targets exist only for mounted rows: snapping before the target row mounts pulls the jump back to a mounted one
+    root.classList.remove('q-snap');
+    if (paginated) requestAnimationFrame(() => requestAnimationFrame(() => this.pres.flow === 'paginated' && root.classList.add('q-snap')));
     this.layout = computeLayout(this.rows, (i) => this.dispSize(i), this.zoom, { viewportH: root.clientHeight, paginated });
     const L = this.layout;
     inner.style.height = `${L.tops[L.tops.length - 1]}px`;

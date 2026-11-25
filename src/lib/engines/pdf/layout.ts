@@ -99,7 +99,7 @@ export function scrollTopFor(l: Layout, page: number, y: number): number {
 
 /** Inverse of `scrollTopFor`: the page at the top edge of the viewport and the fraction down it. */
 export function locationAt(l: Layout, scrollTop: number): { page: number; y: number; row: number } {
-  const row = rowAt(l.tops, Math.max(0, scrollTop));
+  const row = rowAt(l.tops, Math.max(0, scrollTop) + 1); // +1: the browser rounds scrollTop, so a row top at 17391.4 reads back as 17391
   const page = l.rows[row]?.[0] ?? 0;
   const ph = l.pageHeights[row] || 1;
   const y = Math.min(1, Math.max(0, (scrollTop - l.tops[row] - l.contentTops[row]) / ph));

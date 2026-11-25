@@ -55,6 +55,21 @@ export interface Settings {
   keymap: KeymapDiff | null;
   /** library home: cover grid or compact list, and the sort order (T7) */
   library: { view: 'grid' | 'list'; sort: 'recent' | 'added' | 'title' | 'author' | 'progress'; reverse: boolean };
+  /** reader conveniences (T8): progress line, sidebar, ruler, auto-scroll */
+  reader: ReaderPrefs;
+}
+
+export interface ReaderPrefs {
+  /** keep the 2px progress line visible while the chrome is hidden */
+  progressLine: boolean;
+  sidebarWidth: number;
+  sidebarTab: 'toc' | 'pages';
+  /** reading ruler band height, px */
+  rulerHeight: number;
+  /** auto-scroll speed in scrolled flows, px/s */
+  autoScrollSpeed: number;
+  /** auto page-turn interval in paginated flows, s */
+  autoTurnSeconds: number;
 }
 
 export const SETTINGS_DEFAULTS: Readonly<Settings> = Object.freeze({
@@ -75,6 +90,7 @@ export const SETTINGS_DEFAULTS: Readonly<Settings> = Object.freeze({
   activeTypographyProfile: null,
   keymap: null,
   library: { view: 'grid' as const, sort: 'recent' as const, reverse: false },
+  reader: { progressLine: true, sidebarWidth: 300, sidebarTab: 'toc' as const, rulerHeight: 84, autoScrollSpeed: 40, autoTurnSeconds: 20 },
 });
 
 export type SettingKey = keyof Settings;
