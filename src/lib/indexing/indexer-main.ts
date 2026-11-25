@@ -1,5 +1,5 @@
 // Entry of the hidden `indexer` window (indexer.html). No UI: loop over books needing an index.
-import { coreEvents, initCore } from '../core/core';
+import { core, coreEvents, initCore } from '../core/core';
 import { PauseGate, runIndexer } from './indexer';
 
 /** Reload after this many books so the renderer sheds whatever the engines leaked. */
@@ -24,5 +24,7 @@ for (;;) {
     location.reload();
     break;
   }
+  // Nothing left: close this window (a second renderer costs memory); the core opens it again when the library changes.
+  if (await core.indexerDone().then(() => true, () => false)) break;
   await idle();
 }

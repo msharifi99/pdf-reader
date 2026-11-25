@@ -41,6 +41,9 @@ unicode-normalization = "0.1"
 
 [target.'cfg(windows)'.dependencies]
 window-vibrancy = "0.8"
+# same versions tauri's wry uses, so ICoreWebView2_19 is the very type with_webview hands out
+webview2-com = "0.39"
+windows-core = "0.62"
 windows = { version = "0.61", features = [
   "Win32_Foundation",
   "Win32_UI_WindowsAndMessaging",

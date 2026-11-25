@@ -3174,8 +3174,10 @@ dependencies = [
  "unicode-normalization",
  "uuid",
  "walkdir",
+ "webview2-com",
  "window-vibrancy",
  "windows 0.61.3",
+ "windows-core 0.62.2",
  "zip",
 ]
 

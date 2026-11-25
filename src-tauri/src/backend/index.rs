@@ -332,9 +332,10 @@ pub async fn mark_index_failed(core: C<'_>, book_id: String, reason: String) -> 
 /// Drop a book's index so it is picked up again (call after OCR finishes).
 #[tauri::command]
 #[specta::specta]
-pub async fn clear_index(core: C<'_>, book_id: String) -> Res<()> {
+pub async fn clear_index(app: tauri::AppHandle, core: C<'_>, book_id: String) -> Res<()> {
     core.db.clear_index(&book_id)?;
     core.emit_index_progress(None);
+    schedule_indexer(app, core.inner().clone(), std::time::Duration::from_secs(5)); // the indexer window may have closed
     Ok(())
 }
 
@@ -348,13 +349,28 @@ pub async fn set_reading_active(core: C<'_>, active: bool) -> Res<()> {
 
 // ---- the hidden indexer window ----------------------------------------------------------------
 
-/// Create the hidden `indexer` webview a few seconds after launch, so cold start is unaffected.
-/// It never shows, never takes focus and has no taskbar button; it dies with the main window.
+/// Create the hidden `indexer` webview a few seconds after launch (or after the library changes), so cold start is
+/// unaffected, and only when something needs indexing and the user isn't reading: a second renderer is ~10-40 MB.
+/// It never shows, never takes focus and has no taskbar button; it closes itself once the library is indexed
+/// (`indexer-main.ts`) and dies with the main window. Calls while one is already pending are ignored.
 pub fn schedule_indexer(app: tauri::AppHandle, core: Arc<Core>, delay: std::time::Duration) {
+    use std::sync::atomic::AtomicBool;
     use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+    static PENDING: AtomicBool = AtomicBool::new(false);
+    if PENDING.swap(true, Ordering::SeqCst) {
+        return;
+    }
     std::thread::spawn(move || {
         std::thread::sleep(delay);
+        // reading: wait it out (the indexer would only sit paused, holding its memory)
+        while core.reading.load(Ordering::SeqCst) {
+            std::thread::sleep(std::time::Duration::from_secs(30));
+        }
+        PENDING.store(false, Ordering::SeqCst);
         if core.db.get_setting("indexing.enabled").ok().flatten() == Some(Value::Bool(false)) || std::env::var_os("QUIRE_NO_INDEXER").is_some() {
+            return;
+        }
+        if core.db.books_needing_index(1).map(|b| b.is_empty()).unwrap_or(false) {
             return;
         }
         let a = app.clone();
@@ -378,4 +394,15 @@ pub fn schedule_indexer(app: tauri::AppHandle, core: Arc<Core>, delay: std::time
             }
         });
     });
+}
+
+/// Indexer only: nothing left to index, close the window (it comes back when the library changes).
+#[tauri::command]
+#[specta::specta]
+pub async fn indexer_done(app: tauri::AppHandle) -> Res<()> {
+    use tauri::Manager;
+    if let Some(w) = app.get_webview_window("indexer") {
+        let _ = w.destroy();
+    }
+    Ok(())
 }

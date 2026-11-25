@@ -25,6 +25,32 @@ pub struct MaxButtonHover(pub bool);
 #[derive(Default)]
 pub struct Backdrop(pub std::sync::Mutex<String>);
 
+/// Ask WebView2 to run lean (`low`) while the window is minimised and normally again once it is back: the browser
+/// trims caches and working sets for a hidden page. Idempotent per window; a no-op where the runtime lacks the API.
+pub fn set_memory_low(window: &WebviewWindow, low: bool) {
+    #[cfg(windows)]
+    {
+        use std::collections::HashSet;
+        use std::sync::{Mutex, OnceLock};
+        static LOW: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+        let mut set = LOW.get_or_init(Default::default).lock().unwrap();
+        if (low && !set.insert(window.label().to_string())) || (!low && !set.remove(window.label())) {
+            return;
+        }
+        let _ = window.with_webview(move |wv| unsafe {
+            use webview2_com::Microsoft::Web::WebView2::Win32::{ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL};
+            use windows_core::Interface;
+            if let Ok(core) = wv.controller().CoreWebView2() {
+                if let Ok(c) = core.cast::<ICoreWebView2_19>() {
+                    let _ = c.SetMemoryUsageTargetLevel(if low { COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW } else { COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL });
+                }
+            }
+        });
+    }
+    #[cfg(not(windows))]
+    let _ = (window, low);
+}
+
 pub fn setup(app: &AppHandle, window: &WebviewWindow) {
     #[cfg(windows)]
     {
