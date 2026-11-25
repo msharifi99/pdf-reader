@@ -3,7 +3,9 @@ import { mount } from 'svelte';
 import './lib/design/tokens.css';
 import { applyBootTheme } from './lib/shell/theme.svelte';
 import { initCore } from './lib/core/core';
-import { installKeyboard, keymap } from './lib/commands';
+import { installKeyboard } from './lib/commands';
+import { bindKeymapToSettings } from './lib/stores/keymapSync';
+import { installFlushOnClose } from './lib/core/flush';
 import { settings } from './lib/stores/settings.svelte';
 import { installKeyCaptureHook } from './lib/shell/keyCapture';
 import './lib/annotations'; // highlights, notes, bookmarks (T11): reader overlay + library view
@@ -17,8 +19,8 @@ if (new URLSearchParams(location.search).has('gallery')) {
   mount(Gallery, { target });
 } else {
   await settings.init();
-  keymap.load(settings.value.keymap);
-  keymap.onChange(() => settings.set('keymap', keymap.serialize()));
+  bindKeymapToSettings();
+  installFlushOnClose();
   installKeyCaptureHook(); // before the dispatcher: the shortcuts editor must see keys first
   installKeyboard();
   (await import('./lib/speech/ui/install')).installReadAloudAndLookup();

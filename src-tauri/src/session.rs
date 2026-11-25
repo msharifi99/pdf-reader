@@ -53,6 +53,12 @@ impl Session {
     }
 }
 
+/// Bounds to save for a window: while maximized the live rect is the whole work area, so the remembered
+/// normal rect is saved instead (restoring maximizes on top of it, and un-maximizing returns to it).
+pub fn bounds_to_save(maximized: bool, normal: Option<Rect>, live: Option<Rect>) -> Option<Rect> {
+    if maximized { normal.or(live) } else { live }
+}
+
 /// Move `r` onto the visible desktop: pick the monitor it overlaps most (the first, i.e. primary,
 /// when it overlaps none: its monitor was unplugged), shrink it to fit, and slide it inside.
 pub fn clamp_to_monitors(r: Rect, monitors: &[Rect]) -> Rect {
@@ -79,6 +85,8 @@ struct Inner {
     books: HashMap<String, Option<String>>,
     /// label -> focus tick; higher is more recent
     focus: HashMap<String, u64>,
+    /// label -> last bounds while neither maximized, minimized nor fullscreen
+    normal: HashMap<String, Rect>,
     tick: u64,
     next: u32,
 }
@@ -95,6 +103,13 @@ impl Registry {
         let mut g = self.0.lock().unwrap();
         g.books.remove(label);
         g.focus.remove(label);
+        g.normal.remove(label);
+    }
+    pub fn set_normal(&self, label: &str, r: Rect) {
+        self.0.lock().unwrap().normal.insert(label.to_string(), r);
+    }
+    pub fn normal(&self, label: &str) -> Option<Rect> {
+        self.0.lock().unwrap().normal.get(label).copied()
     }
     pub fn focus(&self, label: &str) {
         let mut g = self.0.lock().unwrap();
@@ -181,6 +196,19 @@ mod tests {
         // overlapping the right-hand monitor most keeps it there
         assert!(clamp_to_monitors(Rect { x: 1900, y: 0, w: 1000, h: 800 }, &[M1, M2]).x >= 1920);
         assert_eq!(clamp_to_monitors(ok, &[]), ok);
+    }
+
+    #[test]
+    fn a_maximized_window_saves_its_normal_bounds() {
+        let normal = Rect { x: 100, y: 100, w: 1280, h: 800 };
+        assert_eq!(bounds_to_save(true, Some(normal), Some(M1)), Some(normal));
+        assert_eq!(bounds_to_save(true, None, Some(M1)), Some(M1));
+        assert_eq!(bounds_to_save(false, Some(normal), Some(M2)), Some(M2));
+        let r = Registry::default();
+        r.set_normal("w", normal);
+        assert_eq!(r.normal("w"), Some(normal));
+        r.remove("w");
+        assert_eq!(r.normal("w"), None);
     }
 
     #[test]

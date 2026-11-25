@@ -15,7 +15,8 @@ import type { Flow, TypographyProfile } from '../engines/types';
 import type { KeymapDiff } from '../commands';
 import type { ThemeSeed } from '../design/themes';
 import { defaultTypography } from '../design/fonts';
-import { core } from '../core/core';
+import { core, coreEvents, type Unlisten } from '../core/core';
+import { onFlush } from '../core/flush';
 
 export type PageTint = 'smart' | 'invert' | 'original';
 export type ComicMode = 'single' | 'double' | 'webtoon';
@@ -183,6 +184,9 @@ class SettingsStore {
   #adapter: SettingsAdapter = memoryAdapter();
   #timers = new Map<string, ReturnType<typeof setTimeout>>();
   #resolve!: () => void;
+  #remote = new Set<(key: SettingKey | null) => void>();
+  #unlisten: Unlisten[] = [];
+  #offFlush: (() => void) | undefined;
 
   constructor() {
     this.ready = new Promise((r) => (this.#resolve = r));
@@ -203,6 +207,53 @@ class SettingsStore {
     this.adapterKind = this.#adapter.kind;
     Object.assign(this.value, sanitize(raw));
     this.#resolve();
+    if (this.#adapter.kind === 'core') this.#listen();
+    this.#offFlush ??= onFlush(() => this.flush());
+  }
+
+  /**
+   * Load everything again and replace every value (keys missing from storage fall back to the default).
+   * After a backup restore, which swaps the whole settings table under us.
+   */
+  async reload(): Promise<void> {
+    let raw: Record<string, unknown>;
+    try {
+      raw = await this.#adapter.loadAll();
+    } catch (err) {
+      console.warn('[settings] reload failed', err);
+      return;
+    }
+    for (const t of this.#timers.values()) clearTimeout(t);
+    this.#timers.clear();
+    Object.assign(this.value, clone(SETTINGS_DEFAULTS), sanitize(raw));
+    for (const f of [...this.#remote]) f(null);
+  }
+
+  /** Called when a value changed because another window wrote it, or everything was reloaded (`null`). */
+  onRemote(cb: (key: SettingKey | null) => void): () => void {
+    this.#remote.add(cb);
+    return () => this.#remote.delete(cb);
+  }
+
+  #listen() {
+    this.#unlisten.forEach((f) => f());
+    this.#unlisten = [];
+    try {
+      void coreEvents.onSettingsChanged((k, v) => this.#applyRemote(k, v)).then((f) => this.#unlisten.push(f), () => {});
+      void coreEvents.onBackupRestored(() => void this.reload()).then((f) => this.#unlisten.push(f), () => {});
+    } catch {
+      /* no event channel (unit tests): this window just doesn't hear the others */
+    }
+  }
+
+  #applyRemote(key: string, value: unknown) {
+    if (!(key in SETTINGS_DEFAULTS)) return;
+    const k = key as SettingKey;
+    if (this.#timers.has(k)) return; // a newer edit here is waiting to be written: it wins
+    const next = value === null ? clone(SETTINGS_DEFAULTS[k]) : sanitize({ [k]: value })[k];
+    if (next === undefined || JSON.stringify($state.snapshot(this.value[k])) === JSON.stringify(next)) return;
+    this.value[k] = next as never;
+    for (const f of [...this.#remote]) f(k);
   }
 
   get<K extends SettingKey>(key: K): Settings[K] {
@@ -242,11 +293,13 @@ class SettingsStore {
     );
   }
 
-  async #persist(key: SettingKey) {
+  async #persist(key: SettingKey, retry = true) {
     try {
       await this.#adapter.save(key, $state.snapshot(this.value[key]));
     } catch (err) {
       console.error(`[settings] could not save "${key}"`, err);
+      // a busy database is the usual reason: one more try shortly, unless a newer edit already queued its own write
+      if (retry) setTimeout(() => !this.#timers.has(key) && void this.#persist(key, false), 1000);
     }
   }
 }

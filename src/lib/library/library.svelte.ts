@@ -10,7 +10,8 @@
  */
 import type { Book, Collection, Format, ReadingSpeed, Status } from '../core/bindings';
 import { core, coreEvents, coreMode, isTauri } from '../core/core';
-import { commands, defineCommand, rankItems } from '../commands';
+import { commands, defineCommand, rankItems, registerUndoSource } from '../commands';
+import { onFlush } from '../core/flush';
 import type { Locator } from '../engines/types';
 import { app, openDocument } from '../stores/app.svelte';
 import { settings } from '../stores/settings.svelte';
@@ -123,33 +124,39 @@ async function commitRemoval(id: string) {
   await reload();
 }
 
+/** Removals that can still be undone (Ctrl+Z, most recent last) and the ones undone (Ctrl+Y). */
+const removedStack: Book[] = [];
+const redoStack: Book[] = [];
+
+/** Bring a removed book back: while the undo window is open nothing was written yet; after it the core restores it. */
+function undoRemoval(book: Book): void {
+  const i = removedStack.indexOf(book);
+  if (i >= 0) removedStack.splice(i, 1);
+  redoStack.push(book);
+  if (pendingTimers.has(book.id)) {
+    clearTimeout(pendingTimers.get(book.id));
+    pendingTimers.delete(book.id);
+    lib.pending = lib.pending.filter((x) => x !== book.id);
+    lib.selId = book.id;
+    void reload();
+  } else {
+    // already committed: restore it as it was (last-read and progress untouched)
+    void core.restoreBook(book.id).then(() => ((lib.selId = book.id), reload()), (err) => reportError(err, 'Couldn’t bring that book back.'));
+  }
+}
+
 /** Hide now, remove for real once the undo window has passed. The file on disk is never touched. */
-export function removeBook(book: Book): void {
+export function removeBook(book: Book, redo = false): void {
   if (lib.pending.includes(book.id)) return;
+  removedStack.push(book);
+  if (!redo) redoStack.length = 0;
   const list = visibleBooks();
   const i = list.findIndex((b) => b.id === book.id);
   if (lib.selId === book.id) lib.selId = (list[i + 1] ?? list[i - 1])?.id ?? null;
   lib.pending = [...lib.pending, book.id];
   lib.continuing = lib.continuing.filter((b) => b.id !== book.id);
   pendingTimers.set(book.id, setTimeout(() => void commitRemoval(book.id), 7000));
-  toast(`Removed “${book.title}” from your library`, {
-    duration: 6500,
-    action: {
-      label: 'Undo',
-      run: () => {
-        if (pendingTimers.has(book.id)) {
-          clearTimeout(pendingTimers.get(book.id));
-          pendingTimers.delete(book.id);
-          lib.pending = lib.pending.filter((x) => x !== book.id);
-          lib.selId = book.id;
-          void reload();
-        } else if (book.path) {
-          // already committed: the core restores a hidden book when its file is opened again
-          void core.openDocument(book.path).then(() => reload(), (err) => reportError(err, 'Couldn’t bring that book back.'));
-        }
-      },
-    },
-  });
+  toast(`Removed “${book.title}” from your library`, { duration: 6500, action: { label: 'Undo', run: () => undoRemoval(book) } });
 }
 
 export async function setStatus(book: Book, status: Status): Promise<void> {
@@ -220,7 +227,7 @@ export async function addWatchedFolder(): Promise<boolean> {
   if (!path) return false;
   await core.addWatchedFolder(path);
   await loadFolders();
-  void core.rescanWatchedFolders();
+  void core.rescanWatchedFolders().catch(() => {}); // the folder is added either way
   return true;
 }
 
@@ -260,6 +267,12 @@ export function installLibrary(): void {
     if (b) await fn(b, args);
   };
 
+  registerUndoSource('library', {
+    canUndo: () => removedStack.length > 0,
+    canRedo: () => redoStack.length > 0,
+    undo: () => undoRemoval(removedStack.at(-1)!),
+    redo: () => removeBook(redoStack.pop()!, true),
+  });
   commands.register([
     defineCommand('app.switchBook', () => openPalette({ mode: 'books' })),
     defineCommand('app.newWindow', withBook((b) => openLibraryBook(b, { newWindow: true }))),
@@ -326,11 +339,13 @@ export function installLibrary(): void {
     void reload();
     void loadFolders();
   });
-  void core.readingSpeed(null).then((s) => (lib.speed = s), () => {});
+  void core.readingSpeed(null).then((s) => {
+    lib.speed = s;
+  }, () => {});
   // pending removals are committed if the window goes away
-  window.addEventListener('pagehide', () => {
-    for (const id of [...pendingTimers.keys()]) void core.removeBook(id);
-  });
+  const commitPending = () => Promise.allSettled([...pendingTimers.keys()].map((id) => core.removeBook(id)));
+  window.addEventListener('pagehide', () => void commitPending());
+  onFlush(commitPending);
   startCoverPass(coverSaved);
 
   if (coreMode() === 'fake') (globalThis as Record<string, unknown>).__QUIRE_LIBRARY__ = { lib, core, reload };

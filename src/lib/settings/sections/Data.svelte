@@ -53,7 +53,7 @@
     restoring = true;
     try {
       await core.restore(src);
-      await settings.init(); // the backup carries its own settings
+      await settings.reload(); // the backup carries its own settings (and keymap)
       await Promise.all([reload(), loadFolders()]);
       restoreNote = { kind: 'ok', text: `Restored from “${fileName(src)}”.` };
     } catch (err) {

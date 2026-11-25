@@ -21,6 +21,10 @@ export interface CoreEvents {
   onIngestProgress(cb: (p: { done: number; total: number }) => void): Promise<Unlisten>;
   /** `restore` replaced the database: reload everything. */
   onBackupRestored(cb: () => void): Promise<Unlisten>;
+  /** Any window wrote a setting: apply it here (the writer hears its own echo too, harmlessly). */
+  onSettingsChanged(cb: (key: string, value: unknown) => void): Promise<Unlisten>;
+  /** The window is closing: write everything pending, then call `core.flushDone()`. */
+  onFlushRequest(cb: () => void): Promise<Unlisten>;
   /** Indexing progress: fires when a book starts/finishes indexing and when a failure is recorded. */
   onIndexProgress(cb: (p: IndexProgress) => void): Promise<Unlisten>;
   /** Core -> indexer window: `paused` while the user is reading. */
@@ -72,6 +76,8 @@ export const coreEvents: CoreEvents = {
   onLibraryChanged: (cb) => current().events.onLibraryChanged(cb),
   onIngestProgress: (cb) => current().events.onIngestProgress(cb),
   onBackupRestored: (cb) => current().events.onBackupRestored(cb),
+  onSettingsChanged: (cb) => current().events.onSettingsChanged(cb),
+  onFlushRequest: (cb) => current().events.onFlushRequest(cb),
   onIndexProgress: (cb) => current().events.onIndexProgress(cb),
   onIndexControl: (cb) => current().events.onIndexControl(cb),
 };
@@ -122,6 +128,9 @@ export async function initCore(): Promise<CoreRuntime> {
         onLibraryChanged: (cb) => events.libraryChanged.listen((e) => cb(e.payload)),
         onIngestProgress: (cb) => events.ingestProgress.listen((e) => cb(e.payload)),
         onBackupRestored: (cb) => events.backupRestored.listen(() => cb()),
+        onSettingsChanged: (cb) => events.settingsChanged.listen((e) => cb(e.payload.key, e.payload.value)),
+        // window-scoped like the other per-window events
+        onFlushRequest: async (cb) => events.flushRequest(await thisWindow()).listen(() => cb()),
         onIndexProgress: (cb) => events.indexProgress.listen((e) => cb(e.payload)),
         onIndexControl: (cb) => events.indexControl.listen((e) => cb(e.payload)),
       },

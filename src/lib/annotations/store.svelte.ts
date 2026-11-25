@@ -5,6 +5,7 @@
  * Create, delete, recolour and note edits are undoable (story 94).
  */
 import { core } from '../core/core';
+import { onFlush } from '../core/flush';
 import type { AnnotationKind, AnnotationPatch } from '../core/bindings';
 import type { Anchor } from '../engines/types';
 import { toast } from '../ui';
@@ -48,7 +49,17 @@ export class AnnotationStore {
     /** reading-order key of an anchor (0..1) */
     private readonly pos: (a: Anchor) => number,
     private readonly api: Api = core,
-  ) {}
+  ) {
+    this.#offFlush = onFlush(() => this.settled());
+  }
+
+  #offFlush: () => void;
+  /** the undo entry of each removal, by annotation id, so a toast's Undo can undo exactly that deletion */
+  #removals = new Map<string, Op>();
+
+  dispose(): void {
+    this.#offFlush();
+  }
 
   get canUndo(): boolean {
     return this.#undo.length > 0;
@@ -90,8 +101,21 @@ export class AnnotationStore {
     const a = this.get(id);
     if (!a) return;
     this.#remove(id);
-    this.#push({ undo: () => this.#restore(a), redo: () => this.#remove(a.id) });
+    const op: Op = { undo: () => this.#restore(a), redo: () => this.#remove(a.id) };
+    this.#removals.set(a.id, op);
+    this.#push(op);
     return a;
+  }
+
+  /** Undo that one deletion (not whatever was done last). No-op when it was already undone. */
+  undoRemoval(a: Ann): boolean {
+    const op = this.#removals.get(a.id);
+    this.#removals.delete(a.id);
+    if (!op || !this.#undo.includes(op)) return false;
+    this.#undo = this.#undo.filter((o) => o !== op);
+    this.#redo = [...this.#redo, op];
+    op.undo();
+    return true;
   }
 
   undo(): boolean {

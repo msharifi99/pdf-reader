@@ -37,4 +37,5 @@ export * from './fuzzy';
 export * from './palette-modes';
 export { installKeyboard, isEditableTarget, type DispatcherOptions } from './dispatcher';
 export { commands, contextStack, keymap } from './instances';
+export { registerUndoSource, type UndoSource, type UndoScope } from './undo';
 export { commandsState, keyState } from './state.svelte';

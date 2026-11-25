@@ -47,6 +47,13 @@ pub async fn remove_book(core: C<'_>, id: String) -> Res<()> {
     core.db.remove_book(&id)
 }
 
+/// Undo of `remove_book`: shows the book again without touching its last-read time or progress.
+#[tauri::command]
+#[specta::specta]
+pub async fn restore_book(core: C<'_>, id: String) -> Res<()> {
+    core.db.restore_book(&id)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn set_book_status(core: C<'_>, id: String, status: Status) -> Res<()> {
@@ -219,7 +226,9 @@ pub async fn get_setting(core: C<'_>, key: String) -> Res<Option<Json>> {
 #[tauri::command]
 #[specta::specta]
 pub async fn set_setting(core: C<'_>, key: String, value: Json) -> Res<()> {
-    core.db.set_setting(&key, &value.0)
+    core.db.set_setting(&key, &value.0)?;
+    (core.emit)(super::CoreEvent::SettingsChanged { key, value });
+    Ok(())
 }
 #[tauri::command]
 #[specta::specta]

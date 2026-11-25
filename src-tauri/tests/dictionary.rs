@@ -47,17 +47,31 @@ fn suggestions() {
     assert!(d.suggest("zzzzqq", 10).unwrap().is_empty());
 }
 
+/// Median of `n` runs: one slow run (a busy machine, a cold page) can't fail the budget, a really slow lookup still does.
+fn median_ms(n: usize, mut f: impl FnMut()) -> f64 {
+    let mut v: Vec<f64> = (0..n)
+        .map(|_| {
+            let t = Instant::now();
+            f();
+            t.elapsed().as_secs_f64() * 1000.0
+        })
+        .collect();
+    v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    v[n / 2]
+}
+
 #[test]
 fn fast() {
     let d = dict();
     d.lookup("warmup").unwrap();
     for w in ["run", "running", "geese", "better", "ice cream", "unknownword"] {
-        let t = Instant::now();
-        d.lookup(w).unwrap();
-        let ms = t.elapsed().as_secs_f64() * 1000.0;
-        assert!(ms < 5.0, "{w} took {ms} ms");
+        let ms = median_ms(15, || {
+            d.lookup(w).unwrap();
+        });
+        assert!(ms < 5.0, "{w}: median {ms} ms");
     }
-    let t = Instant::now();
-    d.suggest("a", 10).unwrap();
-    assert!(t.elapsed().as_millis() < 20);
+    let ms = median_ms(15, || {
+        d.suggest("a", 10).unwrap();
+    });
+    assert!(ms < 20.0, "suggest: median {ms} ms");
 }

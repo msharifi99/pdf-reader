@@ -451,3 +451,32 @@ fn rescan_marks_files_deleted_while_closed() {
     quire_lib::backend::watcher::scan_folder(&core.db, &core.emit, &watched).unwrap();
     assert!(!core.db.get_book(&id).unwrap().available);
 }
+
+#[test]
+fn restore_book_undoes_a_removal_without_touching_last_read() {
+    let (t, db) = new_db();
+    let b = open(&db, &pdf(t.path(), "Dune.pdf", "dune"));
+    db.save_progress(&b.id, &json!({"kind":"fixed","page":2}), 0.4).unwrap();
+    let before = db.get_book(&b.id).unwrap().last_opened_at;
+    db.remove_book(&b.id).unwrap();
+    assert!(db.list_books(&ListQuery::default()).unwrap().is_empty());
+    db.restore_book(&b.id).unwrap();
+    let back = db.get_book(&b.id).unwrap();
+    assert_eq!(back.last_opened_at, before, "restoring is not reading");
+    assert_eq!(db.list_books(&ListQuery::default()).unwrap().len(), 1);
+    assert!(db.get_progress(&b.id).unwrap().is_some(), "progress kept");
+    assert!(db.restore_book("nope").is_err());
+}
+
+#[test]
+fn writes_are_durable_wal_with_full_sync() {
+    let (_t, db) = new_db();
+    let (mode, sync): (String, i64) = db
+        .with(|c| Ok((c.query_row("PRAGMA journal_mode", [], |r| r.get(0))?, c.query_row("PRAGMA synchronous", [], |r| r.get(0))?)))
+        .unwrap();
+    assert_eq!(mode, "wal");
+    assert_eq!(sync, 2, "FULL: a committed progress/annotation write survives a power cut");
+    db.set_setting("k", &json!(1)).unwrap();
+    db.checkpoint(); // shutdown folds the WAL into the file
+    assert_eq!(db.get_all_settings().unwrap().len(), 1);
+}

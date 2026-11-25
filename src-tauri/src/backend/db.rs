@@ -124,7 +124,7 @@ pub struct Db {
 fn open_conn(path: &Path) -> Res<Connection> {
     let c = Connection::open(path)?;
     c.busy_timeout(std::time::Duration::from_secs(5))?;
-    c.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA synchronous=NORMAL;")?;
+    c.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;")?;
     migrate(&c)?;
     Ok(c)
 }
@@ -149,6 +149,10 @@ impl Db {
         std::fs::create_dir_all(dir.join("covers"))?;
         let conn = open_conn(&dir.join("quire.db"))?;
         Ok(Db { dir: dir.to_path_buf(), conn: Arc::new(Mutex::new(conn)) })
+    }
+    /// Fold the WAL into the main file (clean shutdown, before a backup copy).
+    pub fn checkpoint(&self) {
+        let _ = self.with(|c| Ok(c.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(())).optional()?));
     }
     pub fn db_path(&self) -> PathBuf {
         self.dir.join("quire.db")
@@ -253,6 +257,13 @@ impl Db {
     pub fn remove_book(&self, id: &str) -> Res<()> {
         self.tx(|t| {
             let n = t.execute("UPDATE books SET removed=1 WHERE id=?1", [id])?;
+            if n == 0 { Err(Error::not_found("that book")) } else { Ok(()) }
+        })
+    }
+
+    pub fn restore_book(&self, id: &str) -> Res<()> {
+        self.tx(|t| {
+            let n = t.execute("UPDATE books SET removed=0 WHERE id=?1", [id])?;
             if n == 0 { Err(Error::not_found("that book")) } else { Ok(()) }
         })
     }

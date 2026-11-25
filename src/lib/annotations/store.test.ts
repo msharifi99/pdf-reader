@@ -68,6 +68,20 @@ describe('AnnotationStore', () => {
     expect(await s['api'].listAnnotations('b')).toHaveLength(1);
   });
 
+  it('undoes one specific deletion, not whatever was done last', async () => {
+    const { api } = fakeApi();
+    const s = new AnnotationStore('b', pos, api);
+    const a = s.create({ type: 'highlight', color: 'yellow', anchor: anchor(1) });
+    s.remove(a.id);
+    s.create({ type: 'highlight', color: 'green', anchor: anchor(2) }); // a later change
+    expect(s.undoRemoval(a)).toBe(true);
+    expect(s.items.map((x) => x.color)).toEqual(['yellow', 'green']);
+    expect(s.undoRemoval(a)).toBe(false); // already back
+    await s.settled();
+    s.redo(); // redo removes it again
+    expect(s.items.map((x) => x.color)).toEqual(['green']);
+  });
+
   it('rolls back a failed write', async () => {
     const { api } = fakeApi(new Set(['update']));
     const s = new AnnotationStore('b', pos, api);

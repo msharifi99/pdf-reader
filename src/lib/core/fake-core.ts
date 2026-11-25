@@ -55,6 +55,8 @@ export function createFakeRuntime(): CoreRuntime {
   const restored: Listener<void> = new Set();
   const indexProg: Listener<IndexProgress> = new Set();
   const indexCtl: Listener<IndexControl> = new Set();
+  const settingsChanged: Listener<{ key: string; value: unknown }> = new Set();
+  const flushReq: Listener<void> = new Set();
   let launchFiles: string[] = [];
 
   const sub = <T>(set: Listener<T>, cb: (v: T) => void): Promise<Unlisten> => {
@@ -70,6 +72,16 @@ export function createFakeRuntime(): CoreRuntime {
   const collections = new Map<string, Collection>();
   const membership = new Map<string, Set<string>>(); // collection id -> book ids
   const settings = new Map<string, Json>();
+  // Stand-in for the core's `settings-changed` broadcast: pages of one browser profile share a channel.
+  const chan = typeof BroadcastChannel === 'function' ? new BroadcastChannel('quire-fake-core') : null;
+  if (chan)
+    chan.onmessage = (e: MessageEvent<{ key: string; value: unknown }>) => {
+      const { key, value } = e.data ?? {};
+      if (typeof key !== 'string') return;
+      if (value === null) settings.delete(key);
+      else settings.set(key, value as Json);
+      settingsChanged.forEach((cb) => cb({ key, value }));
+    };
   const sessions = new Map<number, { bookId: string; start: number; end?: number; amount?: number; unit?: string }>();
   const folders: string[] = [];
   const fixtureName = new Map<string, string>(); // book id -> /fixtures file name
@@ -256,6 +268,7 @@ export function createFakeRuntime(): CoreRuntime {
     // A browser has one window: the UI falls back to opening in place, so this is never called.
     openBookWindow: async () => 'reader-1',
     windowSetBook: async () => {},
+    flushDone: async () => {},
     // The persisted session is `localStorage['quire.fake.session']` in the Rust format, so tests can plant one.
     takeSessionBook: async () => {
       const raw = localStorage.getItem('quire.fake.session');
@@ -297,6 +310,7 @@ export function createFakeRuntime(): CoreRuntime {
     continueReading: async (limit) =>
       (await seed(), visible().filter((b) => b.status === 'reading').sort((a, b) => (b.lastOpenedAt ?? 0) - (a.lastOpenedAt ?? 0)).slice(0, limit)),
     removeBook: async (id) => (removed.add(need(id).id), null),
+    restoreBook: async (id) => (need(id), removed.delete(id), null),
     setBookStatus: async (id, status) => ((need(id).status = status), null),
     setBookSettings: async (id, patch) => {
       const b = need(id);
@@ -411,7 +425,17 @@ export function createFakeRuntime(): CoreRuntime {
 
     // ---- settings, folders, misc ----
     getSetting: async (key) => settings.get(key) ?? null,
-    setSetting: async (key, value) => (value === null ? settings.delete(key) : settings.set(key, value), null),
+    setSetting: async (key, value) => {
+      if (value === null) settings.delete(key);
+      else settings.set(key, value);
+      // a second window (page) of the same browser profile hears it, like the core's settings-changed event
+      try {
+        chan?.postMessage({ key, value });
+      } catch {
+        /* unclonable value: the other window keeps its own */
+      }
+      return null;
+    },
     getAllSettings: async () => Object.fromEntries(settings),
     listWatchedFolders: async () => [...folders],
     addWatchedFolder: async (path) => (folders.includes(path) || folders.push(path), null),
@@ -478,6 +502,8 @@ export function createFakeRuntime(): CoreRuntime {
     onLibraryChanged: (cb) => sub(libChanged, cb),
     onIngestProgress: (cb) => sub(ingest, cb),
     onBackupRestored: (cb) => sub(restored, () => cb()),
+    onSettingsChanged: (cb) => sub(settingsChanged, (m) => cb(m.key, m.value)),
+    onFlushRequest: (cb) => sub(flushReq, () => cb()),
     onIndexProgress: (cb) => sub(indexProg, cb),
     onIndexControl: (cb) => sub(indexCtl, cb),
   };
@@ -496,6 +522,10 @@ export function createFakeRuntime(): CoreRuntime {
   (globalThis as Record<string, unknown>).__QUIRE_FAKE__ = {
     emitOpenFiles: (paths: string[]) => openFiles.forEach((cb) => cb(paths)),
     emitMaxButtonHover: (h: boolean) => maxHover.forEach((cb) => cb(h)),
+    /** The fake backend itself (tests read and write it directly). */
+    api,
+    /** The core asked this window to flush (it is closing). */
+    requestFlush: () => flushReq.forEach((cb) => cb()),
     emitLibraryChanged: (ids: string[] = []) => announce(ids),
     setLaunchFiles: (paths: string[]) => (launchFiles = paths),
     /** Stand-in for Windows OCR: gets the page request plus its RGBA pixels, returns words (boxes normalised 0..1). Default: no words. */

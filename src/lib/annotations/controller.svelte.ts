@@ -48,6 +48,7 @@ export class Annotator {
 
   dispose(): void {
     this.#abort.abort();
+    this.store.dispose();
   }
 
   // ---- where things are ---------------------------------------------------------------------
@@ -132,7 +133,7 @@ export class Annotator {
     const a = this.store.remove(id);
     if (this.popover?.id === id) this.popover = null;
     if (!a) return;
-    toast(a.type === 'bookmark' ? 'Bookmark removed' : a.note ? 'Note removed' : 'Highlight removed', { action: { label: 'Undo', run: () => this.store.undo() } });
+    toast(a.type === 'bookmark' ? 'Bookmark removed' : a.note ? 'Note removed' : 'Highlight removed', { action: { label: 'Undo', run: () => void this.store.undoRemoval(a) } });
   }
 
   undo(): void {

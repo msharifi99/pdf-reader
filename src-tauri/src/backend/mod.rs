@@ -40,6 +40,13 @@ pub struct IngestProgress {
 #[derive(Serialize, Deserialize, Debug, Clone, specta::Type, Event)]
 pub struct BackupRestored(pub bool);
 
+/// A setting was written (by any window): every webview re-reads that key so windows stay in sync.
+#[derive(Serialize, Deserialize, Debug, Clone, specta::Type, Event)]
+pub struct SettingsChanged {
+    pub key: String,
+    pub value: Json,
+}
+
 /// Indexing progress (also fires when a book starts/finishes). `current` is the book being indexed.
 #[derive(Serialize, Deserialize, Debug, Clone, specta::Type, Event)]
 #[serde(rename_all = "camelCase")]
@@ -63,6 +70,7 @@ pub enum CoreEvent {
     LibraryChanged(Vec<String>),
     IngestProgress { done: i32, total: i32 },
     BackupRestored,
+    SettingsChanged { key: String, value: Json },
 }
 
 pub type Emitter = Arc<dyn Fn(CoreEvent) + Send + Sync>;

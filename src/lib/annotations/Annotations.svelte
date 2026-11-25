@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import { commands, defineCommand, rankItems, type Command } from '../commands';
+  import { commands, defineCommand, rankItems, registerUndoSource, type Command } from '../commands';
   import { readerApi, setReaderPanel } from '../reader/slots.svelte';
   import { registerPaletteProvider, openPalette } from '../shell/palette/providers.svelte';
   import { coreMode } from '../core/core';
@@ -51,10 +51,9 @@
         defineCommand('annotate.togglePanel', () => readerApi.togglePanel('annotations')),
         defineCommand('annotate.exportMarkdown', () => ctl.exportMarkdown(), () => ctl.store.items.length > 0),
         defineCommand('annotate.copyQuote', () => ctl.copyQuote(), () => hasSel() || !!ctl.popover),
-        defineCommand('app.undo', () => ctl.undo(), () => ctl.store.canUndo),
-        defineCommand('app.redo', () => ctl.redo(), () => ctl.store.canRedo),
         find,
       ]),
+      registerUndoSource('reader', { canUndo: () => ctl.store.canUndo, canRedo: () => ctl.store.canRedo, undo: () => ctl.undo(), redo: () => ctl.redo() }),
       setReaderPanel({ id: 'annotations', title: 'Annotations', body: panel, width: 360 }),
       registerPaletteProvider({
         mode: 'annotations',
@@ -76,7 +75,7 @@
       }),
       e.on('pointer', (p) => {
         if (p.button !== 0 || session.kind !== 'comic') return; // reflow and pdf report decorationclick
-        void ctl.hitTest(p.x, p.y).then((h) => h && ctl.openPopover(h.id, ctl.toViewport(h.rect)));
+        void ctl.hitTest(p.x, p.y).then((h) => h && ctl.openPopover(h.id, ctl.toViewport(h.rect)), () => {});
       }),
     ];
     if (coreMode() === 'fake') (globalThis as Record<string, unknown>).__QUIRE_ANNOTATIONS__ = ctl;

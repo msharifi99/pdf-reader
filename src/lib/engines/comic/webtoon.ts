@@ -102,7 +102,7 @@ export class WebtoonView implements PageView {
     };
     const hit = this.host.cached(i);
     if (hit && hit.width > 0) draw(hit);
-    else void this.host.bitmaps([i]).then(([bm]) => bm && draw(bm));
+    else void this.host.bitmaps([i]).then(([bm]) => bm && draw(bm), (e) => console.debug('[comic] page decode failed', e));
   }
 
   private tick(reason: RelocatedEvent['reason'] = 'scroll'): void {

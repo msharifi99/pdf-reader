@@ -23,6 +23,8 @@ export const commands = {
 	 *  snap-layout flyout over it. Pass width 0 to disable (e.g. while fullscreen).
 	 */
 	windowSetMaxbtnRect: (x: number, y: number, w: number, h: number, options?: InvokeOptions) => __TAURI_INVOKE<void>("window_set_maxbtn_rect", { x, y, w, h }, options),
+	/**  The window's webview finished writing what it had pending. */
+	flushDone: (options?: InvokeOptions) => __TAURI_INVOKE<void>("flush_done", undefined, options),
 	/**  Open a book in its own window (or focus the window that already shows it). Returns the label. */
 	openBookWindow: (bookId: string, locator: Json | null, options?: InvokeOptions) => __TAURI_INVOKE<string>("open_book_window", { bookId, locator }, options),
 	/**  The window reports which book it shows (None: the library) for dedupe and session save. */
@@ -39,6 +41,8 @@ export const commands = {
 	continueReading: (limit: number, options?: InvokeOptions) => __TAURI_INVOKE<Book[]>("continue_reading", { limit }, options),
 	/**  Hides the book from the library; never touches the file. */
 	removeBook: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("remove_book", { id }, options),
+	/**  Undo of `remove_book`: shows the book again without touching its last-read time or progress. */
+	restoreBook: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("restore_book", { id }, options),
 	setBookStatus: (id: string, status: Status, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_book_status", { id, status }, options),
 	/**  Shallow-merge `patch` into the book's presentation settings (`null` removes a key). Returns the result. */
 	setBookSettings: (id: string, patch: Json, options?: InvokeOptions) => __TAURI_INVOKE<Json>("set_book_settings", { id, patch }, options),
@@ -116,12 +120,14 @@ export const commands = {
 /** Events */
 export const events = {
 	backupRestored: makeEvent<BackupRestored, BackupRestored>("backup-restored"),
+	flushRequest: makeEvent<FlushRequest, FlushRequest>("flush-request"),
 	indexControl: makeEvent<IndexControl, IndexControl>("index-control"),
 	indexProgress: makeEvent<IndexProgress, IndexProgress>("index-progress"),
 	ingestProgress: makeEvent<IngestProgress, IngestProgress>("ingest-progress"),
 	libraryChanged: makeEvent<LibraryChanged, LibraryChanged>("library-changed"),
 	maxButtonHover: makeEvent<MaxButtonHover, MaxButtonHover>("max-button-hover"),
 	openFiles: makeEvent<OpenFiles, OpenFiles>("open-files"),
+	settingsChanged: makeEvent<SettingsChanged, SettingsChanged>("settings-changed"),
 };
 
 /* Types */
@@ -231,6 +237,9 @@ export type Error = {
 };
 
 export type ErrorCode = "NotFound" | "Unsupported" | "Corrupt" | "Io" | "Db" | "PasswordRequired" | "Invalid";
+
+/**  Core -> one window: write everything pending now, then call `flush_done`. */
+export type FlushRequest = boolean;
 
 export type Format = "pdf" | "epub" | "mobi" | "azw3" | "fb2" | "fbz" | "cbz" | "cbr" | "image";
 
@@ -358,6 +367,12 @@ export type Progress = {
 export type ReadingSpeed = {
 	wordsPerMinute: number,
 	minutesPerPage: number,
+};
+
+/**  A setting was written (by any window): every webview re-reads that key so windows stay in sync. */
+export type SettingsChanged = {
+	key: string,
+	value: Json,
 };
 
 export type SortKey = "recent" | "added" | "title" | "author" | "progress";

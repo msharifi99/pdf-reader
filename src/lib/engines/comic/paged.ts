@@ -222,7 +222,7 @@ export class PagedView implements PageView {
     if (!paint) return;
     const cached = shown.pages.map((p) => this.host.cached(p));
     if (cached.every((b) => b && b.width > 0)) draw(cached as ImageBitmap[]);
-    else void this.host.bitmaps(shown.pages).then(draw);
+    else void this.host.bitmaps(shown.pages).then(draw, (e) => console.debug('[comic] page decode failed', e));
     this.host.layoutChanged();
   }
 }

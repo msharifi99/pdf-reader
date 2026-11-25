@@ -64,11 +64,11 @@
 
   onMount(() => {
     const offs: (() => void)[] = [];
-    void core.appVersion().then((v) => (app.version = v));
+    void core.appVersion().then((v) => (app.version = v), () => {});
     void core.windowBackdrop().then((b) => {
       if (b === 'mica') document.documentElement.dataset.mica = '';
       else delete document.documentElement.dataset.mica;
-    });
+    }, () => {});
     offs.push(installThemeManager());
     offs.push(registerGlobalCommands());
     offs.push(installWindowState());

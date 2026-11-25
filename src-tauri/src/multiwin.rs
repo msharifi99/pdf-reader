@@ -121,7 +121,8 @@ pub fn save_session(app: &AppHandle) {
         .into_iter()
         .filter(|(l, _)| l != "indexer")
         .filter_map(|(label, w)| {
-            Some(WinRec { book_id: reg.book_of(&label), bounds: window::outer_rect(&w)?, maximized: w.is_maximized().unwrap_or(false), label })
+            let maximized = w.is_maximized().unwrap_or(false);
+            Some(WinRec { book_id: reg.book_of(&label), bounds: session::bounds_to_save(maximized, reg.normal(&label), window::outer_rect(&w))?, maximized, label })
         })
         .collect();
     wins.sort_by(|a, b| (a.label != MAIN, &a.label).cmp(&(b.label != MAIN, &b.label)));
