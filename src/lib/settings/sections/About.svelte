@@ -26,7 +26,7 @@
   <div>
     <h3>Quire</h3>
     <p class="v tabular" data-testid="about-version">Version {app.version}{coreMode() === 'fake' ? ' · development core' : ''}</p>
-    <p class="tag">A quiet reader for long books. Works offline; your files are never changed.</p>
+    <p class="tag">A quiet reader for long books.</p>
   </div>
 </div>
 
