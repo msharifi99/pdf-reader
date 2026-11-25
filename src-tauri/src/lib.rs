@@ -10,7 +10,7 @@ use specta_typescript::Typescript;
 use tauri::{AppHandle, DragDropEvent, Manager, WindowEvent};
 use tauri_specta::{collect_commands, collect_events, Builder, Event};
 
-use backend::{commands as bc, BackupRestored, Core, CoreEvent, IngestProgress, LibraryChanged};
+use backend::{commands as bc, index, ocr, BackupRestored, Core, CoreEvent, IndexControl, IndexProgress, IngestProgress, LibraryChanged};
 use commands::LaunchFiles;
 use protocol::AllowList;
 
@@ -76,8 +76,18 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             bc::search_library_text,
             bc::backup,
             bc::restore,
+            index::index_book_chunks,
+            index::index_status,
+            index::books_needing_index,
+            index::mark_index_failed,
+            index::clear_index,
+            index::set_reading_active,
+            ocr::ocr_languages,
+            ocr::get_ocr_pages,
+            ocr::ocr_status,
+            ocr::clear_ocr,
         ])
-        .events(collect_events![OpenFiles, window::MaxButtonHover, LibraryChanged, IngestProgress, BackupRestored])
+        .events(collect_events![OpenFiles, window::MaxButtonHover, LibraryChanged, IngestProgress, BackupRestored, IndexProgress, IndexControl])
 }
 
 pub fn export_bindings(builder: &Builder<tauri::Wry>) {
@@ -115,7 +125,7 @@ pub fn run() {
                 let _ = w.set_focus();
             }
         }))
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_window_state::Builder::default().with_denylist(&["indexer"]).build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
@@ -123,7 +133,7 @@ pub fn run() {
         .manage(AllowList::default())
         .manage(window::Backdrop::default())
         .manage(LaunchFiles::default())
-        .invoke_handler(builder.invoke_handler())
+        .invoke_handler(backend::raw::handler(builder.invoke_handler()))
         .setup(move |app| {
             builder.mount_events(app);
             let handle = app.handle();
@@ -134,10 +144,13 @@ pub fn run() {
                     CoreEvent::LibraryChanged(ids) => LibraryChanged(ids).emit(&h),
                     CoreEvent::IngestProgress { done, total } => IngestProgress { done, total }.emit(&h),
                     CoreEvent::BackupRestored => BackupRestored(true).emit(&h),
+                    CoreEvent::IndexProgress { done, total, failed, current } => IndexProgress { done, total, failed, current }.emit(&h),
+                    CoreEvent::IndexControl { paused } => IndexControl { paused }.emit(&h),
                 };
             });
             let core = std::sync::Arc::new(Core::new(&data_dir, emit).expect("couldn't open the library database"));
             core.start();
+            index::schedule_indexer(handle.clone(), core.clone(), std::time::Duration::from_secs(4));
             app.manage(core);
             {
                 // Launch files are allow-listed now; the frontend collects them via take_launch_files.
@@ -151,6 +164,12 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|win, event| {
+            // The hidden indexer must not keep the app alive after the main window closes.
+            if win.label() == "main" && matches!(event, WindowEvent::CloseRequested { .. }) {
+                if let Some(w) = win.app_handle().get_webview_window("indexer") {
+                    let _ = w.destroy();
+                }
+            }
             if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) = event {
                 let paths = paths.iter().map(|p| p.to_string_lossy().into_owned()).collect();
                 open_files(win.app_handle(), paths);

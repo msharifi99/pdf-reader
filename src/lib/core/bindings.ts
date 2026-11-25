@@ -79,11 +79,35 @@ export const commands = {
 	backup: (destPath: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("backup", { destPath }, options),
 	/**  Replaces library data from a `.quire-backup`; emits `backup-restored` (reload the UI). */
 	restore: (srcPath: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("restore", { srcPath }, options),
+	/**
+	 *  Indexer only. Append a batch of chunks; `first` starts a new run for the book (dropping its old
+	 *  chunks), `done` seals it. Emits `index-progress` on the first batch and when done.
+	 */
+	indexBookChunks: (bookId: string, chunks: Chunk[], first: boolean, done: boolean, options?: InvokeOptions) => __TAURI_INVOKE<null>("index_book_chunks", { bookId, chunks, first, done }, options),
+	/**  Indexed/pending per book plus a global done/total. */
+	indexStatus: (options?: InvokeOptions) => __TAURI_INVOKE<IndexStatus>("index_status", undefined, options),
+	/**  Indexer only. Up to `limit` books that still need (re-)indexing, most recently opened first. */
+	booksNeedingIndex: (limit: number, options?: InvokeOptions) => __TAURI_INVOKE<Book[]>("books_needing_index", { limit }, options),
+	/**  Indexer only. Record that extracting `book_id` failed; it is not retried for a day. */
+	markIndexFailed: (bookId: string, reason: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("mark_index_failed", { bookId, reason }, options),
+	/**  Drop a book's index so it is picked up again (call after OCR finishes). */
+	clearIndex: (bookId: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("clear_index", { bookId }, options),
+	/**  Main window: a book is open and being read (`true`) or not (`false`). Pauses/resumes the indexer. */
+	setReadingActive: (active: boolean, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_reading_active", { active }, options),
+	/**  Installed OCR languages; the one OCR uses by default is flagged. */
+	ocrLanguages: (options?: InvokeOptions) => __TAURI_INVOKE<OcrLanguage[]>("ocr_languages", undefined, options),
+	/**  Cached OCR for every page done so far (words normalised 0..1 to the page image). */
+	getOcrPages: (bookId: string, options?: InvokeOptions) => __TAURI_INVOKE<OcrPage[]>("get_ocr_pages", { bookId }, options),
+	ocrStatus: (bookId: string, options?: InvokeOptions) => __TAURI_INVOKE<OcrStatus>("ocr_status", { bookId }, options),
+	/**  Forget a book's OCR (to redo it in another language). Also drops its search index. */
+	clearOcr: (bookId: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("clear_ocr", { bookId }, options),
 };
 
 /** Events */
 export const events = {
 	backupRestored: makeEvent<BackupRestored, BackupRestored>("backup-restored"),
+	indexControl: makeEvent<IndexControl, IndexControl>("index-control"),
+	indexProgress: makeEvent<IndexProgress, IndexProgress>("index-progress"),
 	ingestProgress: makeEvent<IngestProgress, IngestProgress>("ingest-progress"),
 	libraryChanged: makeEvent<LibraryChanged, LibraryChanged>("library-changed"),
 	maxButtonHover: makeEvent<MaxButtonHover, MaxButtonHover>("max-button-hover"),
@@ -150,6 +174,19 @@ export type Book = {
 	collections: string[],
 };
 
+export type BookIndex = {
+	bookId: string,
+	state: IndexState,
+	chunks: number,
+	error: string | null,
+};
+
+export type Chunk = {
+	/**  Where the chunk starts (an engine `Locator`). */
+	locator: Json,
+	text: string,
+};
+
 export type Collection = {
 	id: string,
 	name: string,
@@ -164,6 +201,32 @@ export type Error = {
 export type ErrorCode = "NotFound" | "Unsupported" | "Corrupt" | "Io" | "Db" | "PasswordRequired" | "Invalid";
 
 export type Format = "pdf" | "epub" | "mobi" | "azw3" | "fb2" | "fbz" | "cbz" | "cbr" | "image";
+
+/**  Core -> indexer window: `paused` is true while the user is reading. */
+export type IndexControl = {
+	paused: boolean,
+};
+
+/**  Indexing progress (also fires when a book starts/finishes). `current` is the book being indexed. */
+export type IndexProgress = {
+	done: number,
+	total: number,
+	failed: number,
+	current: string | null,
+};
+
+export type IndexState = "pending" | "indexing" | "done" | "failed";
+
+export type IndexStatus = {
+	/**  Books fully indexed at the current extractor version. */
+	done: number,
+	/**  Indexable books whose file is available. */
+	total: number,
+	failed: number,
+	/**  The user is reading: the indexer is paused. */
+	paused: boolean,
+	books: BookIndex[],
+};
 
 /**  Watched-folder scan progress. */
 export type IngestProgress = {
@@ -207,6 +270,40 @@ export type NewAnnotation = {
 	anchor: Json,
 	note: string | null,
 	label: string | null,
+};
+
+export type OcrLanguage = {
+	/**  BCP-47 tag, e.g. `en-US`; pass as `lang`. */
+	tag: string,
+	name: string,
+	/**  What OCR uses when no language is given (the user's profile languages). */
+	default: boolean,
+};
+
+export type OcrPage = {
+	/**  0-based page (or image) index. */
+	page: number,
+	/**  BCP-47 tag of the recogniser that produced it. */
+	lang: string,
+	words: OcrWordN[],
+};
+
+export type OcrStatus = {
+	/**  Pages with cached OCR results. */
+	pagesDone: number,
+	lang: string | null,
+};
+
+/**
+ *  One recognised word. `x`,`y`,`width`,`height` are fractions (0..1) of the page image,
+ *  origin top-left.
+ */
+export type OcrWordN = {
+	text: string,
+	x: number,
+	y: number,
+	width: number,
+	height: number,
 };
 
 /**  Files the user asked to open (second launch, drag-drop). Paths are already allow-listed. */

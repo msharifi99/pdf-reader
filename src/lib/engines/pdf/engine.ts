@@ -1122,8 +1122,15 @@ export class PdfEngine implements Engine {
   /** Alias of `thumbnail` (the name used in the task brief). */
   renderThumbnail = this.thumbnail;
 
+  async ocrPageSize(page: number): Promise<{ width: number; height: number; rotate: 0 | 90 | 180 | 270 } | null> {
+    if (!this.doc || page < 0 || page >= this.doc.pageCount) return null;
+    const i = await this.doc.info(page);
+    return { width: i.view[2] - i.view[0], height: i.view[3] - i.view[1], rotate: ((((i.rotate % 360) + 360) % 360) as 0 | 90 | 180 | 270) };
+  }
+
   setOcrWords(page: number, words: OcrWord[]): void {
     this.doc?.setOcrWords(page, words);
+    if (this.handle && words.length) this.handle.hasText = true;
     for (const pv of this.pageViews()) if (pv.i === page) this.drawOcr(pv);
   }
 

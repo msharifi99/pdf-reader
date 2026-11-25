@@ -12,7 +12,7 @@ use serde_json::Value;
 use super::error::{Error, Res};
 use super::model::*;
 
-pub const SCHEMA_VERSION: i32 = 1;
+pub const SCHEMA_VERSION: i32 = 2;
 
 /// Each entry migrates from version `index` to `index + 1`. Never edit a shipped entry; append.
 const MIGRATIONS: &[&str] = &[r#"
@@ -98,6 +98,21 @@ CREATE VIRTUAL TABLE text_index USING fts5(
   book_id UNINDEXED, locator UNINDEXED, chunk,
   tokenize = 'unicode61 remove_diacritics 2'
 );
+"#, r#"
+CREATE TABLE index_state(
+  book_id TEXT PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
+  version INTEGER NOT NULL,
+  state TEXT NOT NULL,
+  chunks INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  updated_at REAL NOT NULL
+);
+CREATE TABLE index_ranges(
+  book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+  lo INTEGER NOT NULL,
+  hi INTEGER NOT NULL
+);
+CREATE INDEX index_ranges_book ON index_ranges(book_id);
 "#];
 
 #[derive(Clone)]
@@ -628,52 +643,6 @@ impl Db {
     }
     pub fn remove_watched_folder(&self, path: &str) -> Res<()> {
         self.tx(|t| done(t.execute("DELETE FROM watched_folders WHERE path=?1", [path])))
-    }
-
-    // ---- full-text index (T12 fills it) -----------------------------------------------------
-
-    /// Replace a book's chunks. `chunks`: (locator JSON, text).
-    pub fn index_chunks(&self, book_id: &str, chunks: &[(Value, String)]) -> Res<()> {
-        self.tx(|t| {
-            t.execute("DELETE FROM text_index WHERE book_id=?1", [book_id])?;
-            let mut s = t.prepare("INSERT INTO text_index(book_id,locator,chunk) VALUES(?1,?2,?3)")?;
-            for (loc, text) in chunks {
-                s.execute(params![book_id, loc.to_string(), text])?;
-            }
-            Ok(())
-        })
-    }
-
-    pub fn search_library_text(&self, query: &str, limit: u32) -> Res<Vec<TextHit>> {
-        // Quote every term (no FTS syntax from the user); the last one matches as a prefix.
-        let terms: Vec<String> = query
-            .split(|c: char| !c.is_alphanumeric())
-            .filter(|w| !w.is_empty())
-            .map(|w| format!("\"{w}\""))
-            .collect();
-        if terms.is_empty() {
-            return Ok(vec![]);
-        }
-        let m = format!("{}*", terms.join(" "));
-        self.with(|c| {
-            let mut s = c.prepare(
-                "SELECT t.book_id, b.title, t.locator, snippet(text_index, 2, '<mark>', '</mark>', '…', 16) \
-                 FROM text_index t JOIN books b ON b.id=t.book_id \
-                 WHERE text_index MATCH ?1 AND b.removed=0 ORDER BY rank LIMIT ?2",
-            )?;
-            let v = s
-                .query_map(params![m, limit], |r| {
-                    let loc: String = r.get(2)?;
-                    Ok(TextHit {
-                        book_id: r.get(0)?,
-                        book_title: r.get(1)?,
-                        locator: Json(serde_json::from_str(&loc).unwrap_or(Value::Null)),
-                        snippet: r.get(3)?,
-                    })
-                })?
-                .collect::<Result<Vec<_>, _>>()?;
-            Ok(v)
-        })
     }
 }
 

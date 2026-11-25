@@ -487,6 +487,14 @@ export interface Engine {
   /** Fixed layouts: provide OCR words so scans get a synthetic text layer. */
   setOcrWords?(page: number, words: OcrWord[]): void;
 
+  /**
+   * Fixed layouts: the size of `page` in the coordinate space `setOcrWords` expects (PDF: points of
+   * the unrotated page; comics: decoded image pixels), and the page's display rotation. The bitmap
+   * from `thumbnail()` is shown rotated, so OCR boxes measured on it must be rotated back. Used by
+   * the OCR pipeline (`src/lib/indexing/ocr.ts`).
+   */
+  ocrPageSize?(page: number): Promise<{ width: number; height: number; rotate: 0 | 90 | 180 | 270 } | null>;
+
   /** Release workers, observers, DOM, object URLs. The instance is unusable afterwards. */
   dispose(): void;
 }

@@ -3,7 +3,7 @@
  * fake in a plain browser (Playwright, `npm run dev` in Chromium). Both are typed as `CoreApi`,
  * which is derived from the generated bindings, so the fake cannot drift from Rust.
  */
-import type { commands } from './bindings';
+import type { Book, IndexControl, IndexProgress, OcrPage, commands } from './bindings';
 
 export type CoreApi = typeof commands;
 
@@ -21,6 +21,25 @@ export interface CoreEvents {
   onIngestProgress(cb: (p: { done: number; total: number }) => void): Promise<Unlisten>;
   /** `restore` replaced the database: reload everything. */
   onBackupRestored(cb: () => void): Promise<Unlisten>;
+  /** Indexing progress: fires when a book starts/finishes indexing and when a failure is recorded. */
+  onIndexProgress(cb: (p: IndexProgress) => void): Promise<Unlisten>;
+  /** Core -> indexer window: `paused` while the user is reading. */
+  onIndexControl(cb: (c: IndexControl) => void): Promise<Unlisten>;
+}
+
+/**
+ * Commands whose payload is bytes. Sent as a raw binary request body (no JSON number arrays),
+ * so a 12 MB page bitmap costs one copy. Same names in the fake core.
+ */
+export interface RawApi {
+  /**
+   * OCR one page. `pixels` is raw RGBA (`width*height*4` bytes) or an encoded PNG/JPEG/WebP.
+   * Words come back with boxes normalised 0..1 to the page image and are cached by the core.
+   * Rejects with `{ code, message }` (e.g. `Unsupported` when Windows has no OCR language).
+   */
+  ocrPage(req: { bookId: string; page: number; width: number; height: number; lang?: string | null }, pixels: Uint8Array): Promise<OcrPage>;
+  /** Raw-bytes `saveCover`: WebP/JPEG/PNG bytes (empty = "can't make one"). */
+  saveCover(bookId: string, bytes: Uint8Array): Promise<Book>;
 }
 
 /** A readable file: by absolute path (must be allowed) or by library book id. */
@@ -29,6 +48,7 @@ export type FileRef = { path: string } | { bookId: string };
 export interface CoreRuntime {
   mode: 'tauri' | 'fake';
   api: CoreApi;
+  raw: RawApi;
   events: CoreEvents;
   /** Range-capable URL for pdf.js / fetch / <img>. */
   fileUrl(ref: FileRef): string;
@@ -52,6 +72,14 @@ export const coreEvents: CoreEvents = {
   onLibraryChanged: (cb) => current().events.onLibraryChanged(cb),
   onIngestProgress: (cb) => current().events.onIngestProgress(cb),
   onBackupRestored: (cb) => current().events.onBackupRestored(cb),
+  onIndexProgress: (cb) => current().events.onIndexProgress(cb),
+  onIndexControl: (cb) => current().events.onIndexControl(cb),
+};
+
+/** Binary-body commands: `await raw.ocrPage({ bookId, page, width, height }, rgba)`. */
+export const raw: RawApi = {
+  ocrPage: (req, pixels) => current().raw.ocrPage(req, pixels),
+  saveCover: (id, bytes) => current().raw.saveCover(id, bytes),
 };
 
 /**
@@ -88,6 +116,20 @@ export async function initCore(): Promise<CoreRuntime> {
         onLibraryChanged: (cb) => events.libraryChanged.listen((e) => cb(e.payload)),
         onIngestProgress: (cb) => events.ingestProgress.listen((e) => cb(e.payload)),
         onBackupRestored: (cb) => events.backupRestored.listen(() => cb()),
+        onIndexProgress: (cb) => events.indexProgress.listen((e) => cb(e.payload)),
+        onIndexControl: (cb) => events.indexControl.listen((e) => cb(e.payload)),
+      },
+      raw: {
+        // Raw body + `x-*` headers (see src-tauri/src/backend/raw.rs).
+        ocrPage: async (r, pixels) => {
+          const { invoke } = await import('@tauri-apps/api/core');
+          const headers = { 'x-book-id': r.bookId, 'x-page': String(r.page), 'x-width': String(r.width), 'x-height': String(r.height), 'x-lang': r.lang ?? '' };
+          return invoke<OcrPage>('ocr_page', pixels, { headers });
+        },
+        saveCover: async (id, bytes) => {
+          const { invoke } = await import('@tauri-apps/api/core');
+          return invoke<Book>('save_cover_raw', bytes, { headers: { 'x-book-id': id } });
+        },
       },
       fileUrl: (ref) =>
         'path' in ref

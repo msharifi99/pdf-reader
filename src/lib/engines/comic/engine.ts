@@ -27,9 +27,11 @@ import {
   type RelocatedEvent,
   type ResolvedAnchor,
   type SearchHit,
+  type SearchOptions,
   type Spread,
   type TextChunk,
   type TextRange,
+  type TextStreamOptions,
   type Theme,
   type TocEntry,
 } from '../types';
@@ -87,6 +89,7 @@ export class ComicEngine implements Engine {
   private readonly inflight = new Map<number, Promise<ImageBitmap>>();
   private readonly warned = new Set<number>();
   private readonly ocr = new Map<number, OcrWord[]>();
+  private handle: BookHandle | null = null;
   private readonly listeners = new Map<keyof EngineEventMap, Set<(e: never) => void>>();
   private readonly painter = new Painter();
   private pres: ComicPresentation = { theme: DEFAULT_THEME, pageTint: 'original', flow: 'paginated', spread: 'single', zoom: 1, fit: 'page', direction: 'ltr' };
@@ -143,14 +146,15 @@ export class ComicEngine implements Engine {
       cover: () => this.cover(),
     };
     const toc: TocEntry[] = this.chapters.map((c) => ({ title: c.title, locator: { kind: 'fixed', page: c.page, y: 0 }, children: [] }));
-    return {
+    // The handle (and its capabilities) is kept so OCR results can switch search/textStream on later.
+    return (this.handle = {
       metadata,
       toc,
       layout: 'fixed' as LayoutKind,
       hasText: false,
       pageCount: this.count,
       capabilities: { selection: false, search: false, textStream: false, thumbnails: true, typography: false, zoom: true, pageTint: true, spreads: true, flows: true, ocr: true },
-    };
+    });
   }
 
   // ---- render ---------------------------------------------------------------------------------
@@ -441,16 +445,56 @@ export class ComicEngine implements Engine {
 
   // ---- text: comics have none (OCR can add a synthetic layer) -----------------------------------
 
-  async *search(): AsyncGenerator<SearchHit> {
-    /* no text */
+  /** OCR text of a page: its words joined by spaces (empty when the page has no OCR). */
+  private ocrText(page: number): string {
+    return (this.ocr.get(page) ?? []).map((w) => w.text).join(' ');
   }
 
-  async getText(_range: TextRange): Promise<string> {
-    return '';
+  /** Searches the OCR text only (comics have no other). Hits carry no quads: nothing is drawn over comic pages. */
+  async *search(query: string, options: SearchOptions = {}): AsyncGenerator<SearchHit> {
+    const q = options.caseSensitive ? query.trim() : query.trim().toLowerCase();
+    if (!q) return;
+    for (const page of [...this.ocr.keys()].sort((a, b) => a - b)) {
+      if (options.signal?.aborted || this.disposed) return;
+      const text = this.ocrText(page);
+      const hay = options.caseSensitive ? text : text.toLowerCase();
+      for (let at = hay.indexOf(q); at >= 0; at = hay.indexOf(q, at + q.length)) {
+        const end = at + q.length;
+        if (options.wholeWord && (/\w/.test(hay[at - 1] ?? '') || /\w/.test(hay[end] ?? ''))) continue;
+        const locator: Locator = { kind: 'fixed', page, y: 0 };
+        yield {
+          locator,
+          excerpt: { before: text.slice(Math.max(0, at - 40), at), match: text.slice(at, end), after: text.slice(end, end + 40) },
+          anchor: { locator, quote: { exact: text.slice(at, end), prefix: text.slice(Math.max(0, at - 32), at), suffix: text.slice(end, end + 32) } },
+        };
+      }
+    }
   }
 
-  async *textStream(): AsyncGenerator<TextChunk> {
-    /* no text */
+  async getText(range: TextRange): Promise<string> {
+    const a = range.from.kind === 'fixed' ? range.from.page : 0;
+    const b = range.to.kind === 'fixed' ? range.to.page : this.count - 1;
+    const parts: string[] = [];
+    for (let p = Math.max(0, a); p <= Math.min(this.count - 1, b); p++) if (this.ocr.has(p)) parts.push(this.ocrText(p));
+    return parts.join('\n');
+  }
+
+  /** One chunk per OCR'd page (reading order = page order). */
+  async *textStream(from?: Locator, options: TextStreamOptions = {}): AsyncGenerator<TextChunk> {
+    const start = from?.kind === 'fixed' ? from.page : 0;
+    for (const page of [...this.ocr.keys()].sort((a, b) => a - b)) {
+      if (page < start) continue;
+      if (options.signal?.aborted || this.disposed) return;
+      const text = this.ocrText(page);
+      if (!text) continue;
+      const locator: Locator = { kind: 'fixed', page, y: 0 };
+      yield {
+        text,
+        locator,
+        end: { kind: 'fixed', page, y: 1 },
+        anchorFor: async (s, e) => ({ locator, quote: { exact: text.slice(s, e), prefix: text.slice(Math.max(0, s - 32), s), suffix: text.slice(e, e + 32) } }),
+      };
+    }
   }
 
   async selectionToAnchor(): Promise<Anchor | null> {
@@ -476,11 +520,21 @@ export class ComicEngine implements Engine {
 
   /**
    * Hook for a synthetic text layer (OCR, T12). Words are in image pixels of the page, origin top-left.
-   * Stored per page; nothing draws or searches them yet.
+   * Stored per page and searchable / streamable (`search`, `getText`, `textStream`); nothing is drawn
+   * over the page, so there is no on-page selection or highlight for comics.
    */
   setTextLayer(page: number, words: OcrWord[]): void {
     if (words.length) this.ocr.set(page, words);
     else this.ocr.delete(page);
+    if (this.handle) {
+      this.handle.hasText = this.ocr.size > 0;
+      this.handle.capabilities.search = this.handle.capabilities.textStream = this.ocr.size > 0;
+    }
+  }
+  /** Words are in decoded-image pixels (see `setTextLayer`), unrotated. */
+  async ocrPageSize(page: number): Promise<{ width: number; height: number; rotate: 0 }> {
+    const bm = await this.bitmap(page);
+    return { width: bm.width, height: bm.height, rotate: 0 };
   }
   setOcrWords = (page: number, words: OcrWord[]): void => this.setTextLayer(page, words);
   getTextLayer(page: number): OcrWord[] | undefined {

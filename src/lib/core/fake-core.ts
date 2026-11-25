@@ -1,6 +1,6 @@
 /** In-memory backend for Playwright and browser dev. Typed against `CoreApi`: a missing command fails `tsc`. */
-import type { Annotation, Book, Collection, Format, Json, Progress } from './bindings';
-import type { CoreApi, CoreEvents, CoreRuntime, Unlisten } from './core';
+import type { Annotation, Book, BookIndex, Chunk, Collection, Format, IndexControl, IndexProgress, Json, OcrPage, OcrWordN, Progress, TextHit } from './bindings';
+import type { CoreApi, CoreEvents, CoreRuntime, RawApi, Unlisten } from './core';
 
 type Listener<T> = Set<(v: T) => void>;
 const fail = (code: string, message: string): never => {
@@ -12,6 +12,8 @@ const base = (p: string) => p.split(/[\\/]/).pop() ?? p;
 const stem = (n: string) => n.replace(/\.[^.]+$/, '');
 const uid = () => Math.random().toString(36).slice(2, 10);
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+/** `"pdf/text.pdf"` keeps its folder (fixtures live in sub-folders); anything else flattens to the file name. */
+const fixRel = (p: string) => (/^[\w.-]+\/[\w./-]+$/.test(p) ? p : base(p));
 const cmpText = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
 
 /** `public/fixtures/manifest.json`: `["a.pdf", ...]` or `[{ name, title?, author?, format? }]` (or `{ files: [...] }`). */
@@ -20,6 +22,22 @@ interface ManifestEntry {
   title?: string;
   author?: string;
   format?: Format;
+  // Sample-library extras (T7): a rich fake library for screenshots and library tests.
+  /** fixture actually served when the book opens (samples borrow a real fixture of their format) */
+  file?: string;
+  status?: Book['status'];
+  progress?: number;
+  /** minutes since last opened / days since added */
+  openedMinutesAgo?: number;
+  addedDaysAgo?: number;
+  /** cover image URL (e.g. /fixtures/covers/x.webp); `needsCover: false` without one = typographic cover */
+  cover?: string;
+  needsCover?: boolean;
+  available?: boolean;
+  pageCount?: number;
+  wordCount?: number;
+  /** collection names, created on first use */
+  collections?: string[];
 }
 
 export function createFakeRuntime(): CoreRuntime {
@@ -28,6 +46,8 @@ export function createFakeRuntime(): CoreRuntime {
   const libChanged: Listener<string[]> = new Set();
   const ingest: Listener<{ done: number; total: number }> = new Set();
   const restored: Listener<void> = new Set();
+  const indexProg: Listener<IndexProgress> = new Set();
+  const indexCtl: Listener<IndexControl> = new Set();
   let launchFiles: string[] = [];
 
   const sub = <T>(set: Listener<T>, cb: (v: T) => void): Promise<Unlisten> => {
@@ -47,15 +67,22 @@ export function createFakeRuntime(): CoreRuntime {
   const folders: string[] = [];
   const fixtureName = new Map<string, string>(); // book id -> /fixtures file name
   let sessionSeq = 0;
+  // Text index: chunks per book plus the run state, like the Rust `index_state` table.
+  const INDEX_VERSION = 1;
+  const textIndex = new Map<string, { chunks: Chunk[]; state: 'indexing' | 'done' | 'failed'; version: number; error: string | null; at: number }>();
+  const ocrCache = new Map<string, Map<number, OcrPage>>();
+  let reading = false;
+  let ocrHook: ((req: { bookId: string; page: number; width: number; height: number; pixels: Uint8Array }) => OcrWordN[]) | null = null;
 
   const addBook = (path: string, e: Partial<ManifestEntry> = {}): Book => {
-    const name = base(path);
-    const existing = [...books.values()].find((b) => fixtureName.get(b.id) === name);
+    const name = fixRel(path);
+    const existing = [...books.values()].find((b) => b.path === path || fixtureName.get(b.id) === name);
     if (existing) return existing;
-    const id = `fx-${stem(name)}`.replace(/[^\w-]/g, '_');
+    let id = `fx-${stem(base(name))}`.replace(/[^\w-]/g, '_');
+    if (books.has(id)) id = `fx-${base(name)}`.replace(/[^\w-]/g, '_'); // comic.cbz vs comic.cbr
     const b: Book = {
       id, fingerprint: id, format: e.format ?? EXT[name.split('.').pop()?.toLowerCase() ?? ''] ?? 'pdf',
-      title: e.title ?? stem(name), author: e.author ?? '', coverUrl: null, needsCover: true,
+      title: e.title ?? stem(base(name)), author: e.author ?? '', coverUrl: null, needsCover: true,
       pageCount: null, wordCount: null, status: 'unread', addedAt: Date.now() + books.size, lastOpenedAt: null,
       fileSize: 0, settings: {}, available: true, path, progress: null, collections: [],
     };
@@ -64,17 +91,37 @@ export function createFakeRuntime(): CoreRuntime {
     return b;
   };
 
+  const sample = (b: Book, e: ManifestEntry) => {
+    const now = Date.now();
+    if (e.file) fixtureName.set(b.id, e.file);
+    if (e.status) b.status = e.status;
+    if (e.progress != null) progress.set(b.id, { bookId: b.id, locator: null, fraction: e.progress, updatedAt: now });
+    if (e.openedMinutesAgo != null) b.lastOpenedAt = now - e.openedMinutesAgo * 60000;
+    if (e.addedDaysAgo != null) b.addedAt = now - e.addedDaysAgo * 86400000;
+    if (e.cover) b.coverUrl = e.cover;
+    if (e.cover || e.needsCover === false) b.needsCover = false;
+    if (e.available === false) b.available = false;
+    if (e.pageCount) b.pageCount = e.pageCount;
+    if (e.wordCount) b.wordCount = e.wordCount;
+    for (const name of e.collections ?? []) {
+      let c = [...collections.values()].find((x) => x.name === name);
+      if (!c) collections.set((c = { id: uid(), name, count: 0 }).id, c), membership.set(c.id, new Set());
+      membership.get(c.id)!.add(b.id);
+    }
+  };
+
   let seeded: Promise<void> | undefined;
   const seed = () =>
     (seeded ??= (async () => {
       try {
+        if (new URLSearchParams(location.search).has('empty')) return; // an empty library on demand
         const r = await fetch('/fixtures/manifest.json');
         if (!r.ok || !(r.headers.get('content-type') ?? '').includes('json')) return;
         const m: unknown = await r.json();
         const list = Array.isArray(m) ? m : Array.isArray(obj(m).files) ? (obj(m).files as unknown[]) : [];
         for (const e of list) {
           const entry = typeof e === 'string' ? { name: e } : (e as ManifestEntry);
-          if (entry?.name) addBook(entry.name, entry);
+          if (entry?.name) sample(addBook(entry.name, entry), entry);
         }
       } catch {
         /* no manifest: start empty */
@@ -117,6 +164,73 @@ export function createFakeRuntime(): CoreRuntime {
     return r.length ? r[Math.floor(r.length / 2)] : undefined;
   };
 
+
+  // ---- full-text index (same query semantics as src-tauri/src/backend/index.rs) ----------------
+  const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+  const tokens = (s: string) => [...s.matchAll(/[\p{L}\p{N}]+/gu)].map((m) => ({ start: m.index!, end: m.index! + m[0].length, w: fold(m[0]) }));
+  /** Bare words ANDed, "quoted" = phrase, the word being typed matches as a prefix. */
+  const parseQuery = (input: string): { terms: string[][]; prefix: boolean } | null => {
+    const words = (s: string) => tokens(s).map((t) => t.w.slice(0, 64));
+    const terms: string[][] = [];
+    input.split('"').forEach((seg, i) => {
+      if (i % 2 === 1) {
+        const w = words(seg);
+        if (w.length) terms.push(w);
+      } else for (const piece of seg.split(/\s+/)) if (words(piece).length) terms.push(words(piece));
+    });
+    if (!terms.length) return null;
+    const open = (input.match(/"/g)?.length ?? 0) % 2 === 1;
+    return { terms: terms.slice(0, 16), prefix: open || /[\p{L}\p{N}]$/u.test(input) };
+  };
+  const matchesAt = (toks: { w: string }[], term: string[], prefixLast: boolean): number[] => {
+    const out: number[] = [];
+    for (let i = 0; i + term.length <= toks.length; i++)
+      if (term.every((w, k) => (k === term.length - 1 && prefixLast ? toks[i + k].w.startsWith(w) : toks[i + k].w === w))) out.push(i);
+    return out;
+  };
+  const searchText = (query: string, limit: number): TextHit[] => {
+    const q = parseQuery(query);
+    if (!q) return [];
+    const scored: { hit: TextHit; score: number }[] = [];
+    for (const [bookId, ix] of textIndex) {
+      const b = books.get(bookId);
+      if (!b || removed.has(bookId)) continue;
+      const perBook: { hit: TextHit; score: number }[] = [];
+      for (const c of ix.chunks) {
+        const toks = tokens(c.text);
+        const found = q.terms.map((t, i) => matchesAt(toks, t, q.prefix && i === q.terms.length - 1));
+        if (found.some((f) => !f.length)) continue;
+        const marked = new Set<number>();
+        q.terms.forEach((t, i) => found[i].forEach((at) => t.forEach((_, k) => marked.add(at + k))));
+        const first = Math.min(...found.map((f) => f[0]));
+        const lo = Math.max(0, first - 12);
+        const hi = Math.min(toks.length, first + 13);
+        let snippet = lo > 0 ? '…' : '';
+        for (let i = lo; i < hi; i++) {
+          const t = toks[i];
+          const gap = i === lo ? '' : c.text.slice(toks[i - 1].end, t.start);
+          snippet += gap + (marked.has(i) ? `<mark>${c.text.slice(t.start, t.end)}</mark>` : c.text.slice(t.start, t.end));
+        }
+        if (hi < toks.length) snippet += '…';
+        const score = marked.size / Math.sqrt(toks.length || 1);
+        perBook.push({ score, hit: { bookId, bookTitle: b.title, locator: c.locator, snippet } });
+      }
+      scored.push(...perBook.sort((a, b2) => b2.score - a.score).slice(0, 5));
+    }
+    return scored.sort((a, b) => b.score - a.score).slice(0, limit).map((s) => s.hit);
+  };
+  const indexable = (b: Book) => !removed.has(b.id) && b.available && (!['cbz', 'cbr', 'image'].includes(b.format) || (ocrCache.get(b.id)?.size ?? 0) > 0);
+  const bookIndexState = (id: string): BookIndex => {
+    const ix = textIndex.get(id);
+    const state = !ix ? 'pending' : ix.state === 'done' && ix.version < INDEX_VERSION ? 'pending' : ix.state;
+    return { bookId: id, state, chunks: ix?.chunks.length ?? 0, error: ix?.error ?? null };
+  };
+  const indexCounts = () => {
+    const list = [...books.values()].filter(indexable).map((b) => bookIndexState(b.id));
+    return { done: list.filter((i) => i.state === 'done').length, total: list.length, failed: list.filter((i) => i.state === 'failed').length };
+  };
+  const emitProgress = (current: string | null) => indexProg.forEach((cb) => cb({ ...indexCounts(), current }));
+
   const api: CoreApi = {
     appVersion: async () => __APP_VERSION__,
     takeLaunchFiles: async () => {
@@ -137,6 +251,7 @@ export function createFakeRuntime(): CoreRuntime {
     openDocument: async (path) => {
       await seed();
       const b = addBook(path);
+      if (!b.available) fail('NotFound', "Couldn't find that file.");
       removed.delete(b.id);
       b.lastOpenedAt = Date.now();
       announce([b.id]);
@@ -281,18 +396,47 @@ export function createFakeRuntime(): CoreRuntime {
     removeWatchedFolder: async (path) => (folders.splice(0, folders.length, ...folders.filter((f) => f !== path)), null),
     rescanWatchedFolders: async () => null,
     listSystemFonts: async () => ['Arial', 'Calibri', 'Cambria', 'Consolas', 'Georgia', 'Segoe UI', 'Times New Roman', 'Verdana'],
-    searchLibraryText: async (query, limit) => {
-      // No text index in the fake: match titles so UI has something to render.
-      const q = query.toLowerCase();
-      return visible()
-        .filter((b) => q && b.title.toLowerCase().includes(q))
-        .slice(0, limit)
-        .map((b) => {
-          const i = b.title.toLowerCase().indexOf(q);
-          const snippet = `${b.title.slice(0, i)}<mark>${b.title.slice(i, i + q.length)}</mark>${b.title.slice(i + q.length)}`;
-          return { bookId: b.id, bookTitle: b.title, locator: { kind: 'fixed', page: 0 }, snippet };
-        });
+    searchLibraryText: async (query, limit) => (await seed(), searchText(query, limit)),
+    indexBookChunks: async (bookId, chunks, first, done) => {
+      need(bookId);
+      let ix = textIndex.get(bookId);
+      if (first) textIndex.set(bookId, (ix = { chunks: [], state: 'indexing', version: INDEX_VERSION, error: null, at: Date.now() }));
+      else if (ix?.state !== 'indexing') fail('Invalid', 'This book has no index run in progress; start one with first=true.');
+      ix!.chunks.push(...chunks.filter((c) => c.text.trim()).map((c) => ({ locator: c.locator, text: c.text.trim() })));
+      if (done) ix!.state = 'done';
+      if (first || done) emitProgress(done ? null : bookId);
+      return null;
     },
+    indexStatus: async () => {
+      await seed();
+      return { ...indexCounts(), paused: reading, books: [...books.values()].filter(indexable).map((b) => bookIndexState(b.id)) };
+    },
+    booksNeedingIndex: async (limit) => {
+      await seed();
+      return visible()
+        .filter((b) => indexable(b) && !['done', 'failed'].includes(bookIndexState(b.id).state))
+        .slice(0, limit);
+    },
+    markIndexFailed: async (bookId, reason) => {
+      need(bookId);
+      textIndex.set(bookId, { chunks: [], state: 'failed', version: INDEX_VERSION, error: reason, at: Date.now() });
+      emitProgress(null);
+      return null;
+    },
+    clearIndex: async (bookId) => (textIndex.delete(bookId), emitProgress(null), null),
+    setReadingActive: async (active) => {
+      if (reading !== active) {
+        reading = active;
+        indexCtl.forEach((cb) => cb({ paused: active }));
+      }
+      return null;
+    },
+
+    // ---- OCR ----
+    ocrLanguages: async () => [{ tag: 'en-US', name: 'English (United States)', default: true }],
+    getOcrPages: async (bookId) => [...(ocrCache.get(bookId)?.values() ?? [])].sort((a, b) => a.page - b.page),
+    ocrStatus: async (bookId) => ({ pagesDone: ocrCache.get(bookId)?.size ?? 0, lang: ocrCache.get(bookId)?.size ? 'en-US' : null }),
+    clearOcr: async (bookId) => (ocrCache.delete(bookId), textIndex.delete(bookId), null),
     backup: async () => null,
     restore: async () => (restored.forEach((cb) => cb()), null),
   };
@@ -303,6 +447,18 @@ export function createFakeRuntime(): CoreRuntime {
     onLibraryChanged: (cb) => sub(libChanged, cb),
     onIngestProgress: (cb) => sub(ingest, cb),
     onBackupRestored: (cb) => sub(restored, () => cb()),
+    onIndexProgress: (cb) => sub(indexProg, cb),
+    onIndexControl: (cb) => sub(indexCtl, cb),
+  };
+
+  const raw: RawApi = {
+    ocrPage: async (req, pixels) => {
+      need(req.bookId);
+      const page: OcrPage = { page: req.page, lang: 'en-US', words: ocrHook?.({ ...req, pixels }) ?? [] };
+      (ocrCache.get(req.bookId) ?? ocrCache.set(req.bookId, new Map()).get(req.bookId)!).set(req.page, page);
+      return page;
+    },
+    saveCover: (id, bytes) => api.saveCover(id, [...bytes]),
   };
 
   // Test hooks: Playwright drives backend-originated events through this.
@@ -311,6 +467,10 @@ export function createFakeRuntime(): CoreRuntime {
     emitMaxButtonHover: (h: boolean) => maxHover.forEach((cb) => cb(h)),
     emitLibraryChanged: (ids: string[] = []) => announce(ids),
     setLaunchFiles: (paths: string[]) => (launchFiles = paths),
+    /** Stand-in for Windows OCR: gets the page request plus its RGBA pixels, returns words (boxes normalised 0..1). Default: no words. */
+    setOcr: (fn: typeof ocrHook) => (ocrHook = fn),
+    /** Is the (fake) indexer paused because a book is being read? */
+    isReading: () => reading,
     /** Add a fixture book by file name (no manifest needed) and announce it. */
     addFixture: (name: string, e: Partial<ManifestEntry> = {}) => {
       const b = addBook(name, e);
@@ -326,8 +486,9 @@ export function createFakeRuntime(): CoreRuntime {
   return {
     mode: 'fake',
     api,
+    raw,
     events,
     // A relative "folder/file" path (fixture sub-folders such as comic/images) keeps its folder; absolute paths flatten to the file name.
-    fileUrl: (ref) => ('path' in ref ? `/fixtures/${/^[\w.-]+\/[\w./-]+$/.test(ref.path) ? ref.path : base(ref.path)}` : `/fixtures/${fixtureName.get(ref.bookId) ?? ref.bookId}`),
+    fileUrl: (ref) => ('path' in ref ? `/fixtures/${fixRel(ref.path)}` : `/fixtures/${fixtureName.get(ref.bookId) ?? ref.bookId}`),
   };
 }

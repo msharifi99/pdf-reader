@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "indexer",
+  "description": "Hidden background indexer window: commands and events only",
+  "windows": ["indexer"],
+  "permissions": ["core:default"]
+}

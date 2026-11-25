@@ -70,9 +70,14 @@ pub async fn set_book_metadata(core: C<'_>, id: String, patch: MetadataPatch) ->
 #[tauri::command]
 #[specta::specta]
 pub async fn save_cover(core: C<'_>, id: String, bytes: Vec<u8>) -> Res<Book> {
+    store_cover(&core, &id, &bytes)
+}
+
+/// Shared by `save_cover` and the raw-bytes `save_cover_raw` (see `raw.rs`).
+pub fn store_cover(core: &Core, id: &str, bytes: &[u8]) -> Res<Book> {
     let ext = if bytes.starts_with(&[0xff, 0xd8]) { "jpg" } else if bytes.starts_with(&[0x89, b'P']) { "png" } else { "webp" };
-    core.db.save_cover(&id, &bytes, ext)?;
-    core.db.get_book(&id)
+    core.db.save_cover(id, bytes, ext)?;
+    core.db.get_book(id)
 }
 
 #[tauri::command]

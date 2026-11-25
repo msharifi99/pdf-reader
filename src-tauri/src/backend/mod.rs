@@ -8,10 +8,14 @@ pub mod db;
 pub mod error;
 pub mod files;
 pub mod fonts;
+pub mod index;
 pub mod model;
+pub mod ocr;
+pub mod raw;
 pub mod watcher;
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
@@ -36,8 +40,26 @@ pub struct IngestProgress {
 #[derive(Serialize, Deserialize, Debug, Clone, specta::Type, Event)]
 pub struct BackupRestored(pub bool);
 
+/// Indexing progress (also fires when a book starts/finishes). `current` is the book being indexed.
+#[derive(Serialize, Deserialize, Debug, Clone, specta::Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexProgress {
+    pub done: u32,
+    pub total: u32,
+    pub failed: u32,
+    pub current: Option<String>,
+}
+
+/// Core -> indexer window: `paused` is true while the user is reading.
+#[derive(Serialize, Deserialize, Debug, Clone, specta::Type, Event)]
+pub struct IndexControl {
+    pub paused: bool,
+}
+
 #[derive(Debug, Clone)]
 pub enum CoreEvent {
+    IndexProgress { done: u32, total: u32, failed: u32, current: Option<String> },
+    IndexControl { paused: bool },
     LibraryChanged(Vec<String>),
     IngestProgress { done: i32, total: i32 },
     BackupRestored,
@@ -49,11 +71,13 @@ pub struct Core {
     pub db: Db,
     pub emit: Emitter,
     watching: Mutex<Option<watcher::Watching>>,
+    /// The main window has a book open: the indexer stays paused.
+    pub reading: AtomicBool,
 }
 
 impl Core {
     pub fn new(dir: &Path, emit: Emitter) -> Res<Core> {
-        Ok(Core { db: Db::open(dir)?, emit, watching: Mutex::new(None) })
+        Ok(Core { db: Db::open(dir)?, emit, watching: Mutex::new(None), reading: AtomicBool::new(false) })
     }
 
     /// App launch: housekeeping, availability check and (re)scan + watch of all watched folders, off-thread.
