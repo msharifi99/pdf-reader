@@ -297,10 +297,9 @@ export class ReaderSession {
       if (d > 0 && d < 0.05) this.#wordsRead += d * this.handle.wordCount; // jumps don't count as reading
     }
     this.#lastFraction = f;
-    // 'initial' is where we just restored to: never overwrite the saved place with it.
-    // Reflow 'presentation'/'resize' events are re-layout echoes (positions measured while fonts and images are still
-    // settling); the engine now reports text-level CFIs for them, but they still must not replace the reader's real spot.
-    if (ev.reason === 'initial' || (this.kind === 'reflow' && (ev.reason === 'presentation' || ev.reason === 'resize'))) return;
+    // 'initial' is where we just restored to: never overwrite the saved place with it. Reflow re-layout echoes arrive
+    // already settled (the engine publishes them once the layout holds still), so every other reason is a real position.
+    if (ev.reason === 'initial') return;
     this.#saver.update(l, f);
   }
 

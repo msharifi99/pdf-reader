@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 type Opts = { passwords?: string[]; theme?: string; tint?: string; page?: number; flow?: string; fit?: string; zoom?: number };
 /* eslint-disable @typescript-eslint/no-explicit-any */

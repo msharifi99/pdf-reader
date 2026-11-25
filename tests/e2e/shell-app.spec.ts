@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // App shell (T5): palette, cheat-sheet, shortcuts editor, theme, overlays, chrome auto-hide. Fake core.
 

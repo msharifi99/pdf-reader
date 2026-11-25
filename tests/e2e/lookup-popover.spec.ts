@@ -1,5 +1,6 @@
-import { test, expect, type Page } from '@playwright/test';
-import { selectWord } from './speech-helpers';
+import { type Page } from '@playwright/test';
+import { test, expect } from './helpers/test';
+import { selectWord } from './helpers/speech';
 
 // Lookup popover (T13 UI): D on a selection defines it from the (fake) offline dictionary; synonyms look up
 // again; Wikipedia is only fetched after the tab is clicked (mocked here); disambiguation and offline states.

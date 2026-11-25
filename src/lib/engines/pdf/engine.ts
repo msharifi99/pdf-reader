@@ -834,7 +834,8 @@ export class PdfEngine implements Engine {
   }
 
   getLocation(): RelocatedEvent | null {
-    return this.root && this.layout ? this.buildEvent('scroll') : this.last;
+    // a detached stage (the reader is closing) measures page 0: report the last real position instead
+    return this.root?.isConnected && this.layout ? this.buildEvent('scroll') : this.last;
   }
 
   private buildEvent(reason: RelocatedEvent['reason']): RelocatedEvent {

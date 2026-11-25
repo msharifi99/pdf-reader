@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './helpers/test';
 
 /* The harness (harness/indexing.html) runs the real indexer, librarySearch and engines in-page
    against the fake core, with fixtures served from /fixtures. */

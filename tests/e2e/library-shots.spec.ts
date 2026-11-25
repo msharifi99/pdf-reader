@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // Library screenshots for design review (T7). Run on demand: SHOTS=1 npx playwright test library-shots
 test.skip(!process.env.SHOTS, 'screenshots only on demand (SHOTS=1)');

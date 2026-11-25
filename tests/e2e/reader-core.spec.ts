@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // Reader (T8): open flow, navigation, find, history, per-book settings, progress. Fake core, fixtures under public/fixtures.
 

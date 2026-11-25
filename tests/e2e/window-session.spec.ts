@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // Multi-window fallback and session restore (T14). A browser has one window, so "open in new window"
 // opens in place; the persisted session is planted in the fake core's localStorage in the shape Rust saves.

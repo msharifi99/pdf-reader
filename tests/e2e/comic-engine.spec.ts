@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Opts = Record<string, unknown>;

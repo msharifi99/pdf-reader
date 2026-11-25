@@ -1,6 +1,6 @@
 // Range loading of a ~600 MB PDF against a server that mimics src-tauri/src/protocol.rs
 // (16 MB response cap, 206 for a Range-less request on a big file, CORS headers).
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/test';
 import { createServer, type Server } from 'node:http';
 import { createWriteStream, existsSync, renameSync, statSync, openSync, readSync, closeSync } from 'node:fs';
 import { randomFillSync } from 'node:crypto';

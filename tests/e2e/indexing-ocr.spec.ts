@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './helpers/test';
 
 /* OCR end to end in fake mode: a rendered scan (public/fixtures/pdf/scanned.pdf, image-only), the real page
    rendering + RGBA transfer path, Windows OCR mocked with fixed boxes, then PDF-engine search over the result. */

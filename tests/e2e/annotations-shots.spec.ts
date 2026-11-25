@@ -1,5 +1,6 @@
-import { test, expect, type Page } from '@playwright/test';
-import { boot, chapter, close, items, open, seed, selectEpub, selectPdf } from './annotations-helpers';
+import { type Page } from '@playwright/test';
+import { test, expect } from './helpers/test';
+import { boot, chapter, close, items, open, seed, selectEpub, selectPdf } from './helpers/annotations';
 
 // Annotation screenshots for design review (T11). Run on demand: SHOTS=1 npx playwright test annotations-shots
 test.skip(!process.env.SHOTS, 'screenshots only on demand (SHOTS=1)');

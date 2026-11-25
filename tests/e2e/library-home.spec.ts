@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { test, expect } from './helpers/test';
 
 // Library home (T7). Each test seeds a known library through the fake core (no dependence on manifest.json).
 

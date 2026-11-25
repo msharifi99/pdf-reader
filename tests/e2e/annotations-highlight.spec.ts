@@ -1,5 +1,6 @@
-import { test, expect, type Page } from '@playwright/test';
-import { boot, chapter, close, coreItems, drawn, items, open, seed, selectEpub, selectPdf, settled } from './annotations-helpers';
+import { type Page } from '@playwright/test';
+import { test, expect } from './helpers/test';
+import { boot, chapter, close, coreItems, drawn, items, open, seed, selectEpub, selectPdf, settled } from './helpers/annotations';
 
 // Highlights, notes, undo, copy as quote, export (T11).
 

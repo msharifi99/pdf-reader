@@ -1,5 +1,6 @@
-import { test, expect, type Page } from '@playwright/test';
-import { installFakeSpeech, selectWord } from './speech-helpers';
+import { type Page } from '@playwright/test';
+import { test, expect } from './helpers/test';
+import { installFakeSpeech, selectWord } from './helpers/speech';
 
 // Read-aloud + lookup screenshots for design review (T13). Run on demand: SHOTS=1 npx playwright test speech-shots
 test.skip(!process.env.SHOTS, 'screenshots only on demand (SHOTS=1)');

@@ -1,5 +1,6 @@
-import { test, expect, type Page } from '@playwright/test';
-import { installFakeSpeech } from './speech-helpers';
+import { type Page } from '@playwright/test';
+import { test, expect } from './helpers/test';
+import { installFakeSpeech } from './helpers/speech';
 
 // Read-aloud (T13 UI): player, transport, word highlight, stop on close. A fake speechSynthesis is injected
 // before the app boots; the test drives it: __fakeSpeech.word() fires the next word boundary, .end() ends

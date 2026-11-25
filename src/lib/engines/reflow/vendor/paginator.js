@@ -9,6 +9,9 @@
  *     text node. Foliate used the element itself, so the reported CFI (and the anchor kept for re-layout)
  *     was element-level (`/4/18`, or `/4` for the whole body) and a resize/typography change snapped to it.
  *  3. #afterScroll does not report the transient empty padding page reached just before a section change.
+ *  4. getVisibleRange starts the range on the first non-space character. The bisect can stop on the collapsed
+ *     space that ends the previous page's last line ("as he| comes"); a CFI there resolves to the previous page, so
+ *     a saved position reopened one page early whenever a page began exactly at a line wrap.
  */
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -151,7 +154,10 @@ const getVisibleRange = (doc, start, end, mapRect) => {
         })
 
     const range = doc.createRange()
-    range.setStart(from, startOffset)
+    // QUIRE: never start on the whitespace that trails the previous page's last line
+    let first = startOffset
+    if (from.nodeType === 3) while (first < from.length - 1 && /\s/.test(from.nodeValue[first])) first++
+    range.setStart(from, from === to && first > endOffset ? startOffset : first)
     range.setEnd(to, endOffset)
     return range
 }

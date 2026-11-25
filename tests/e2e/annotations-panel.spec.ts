@@ -1,5 +1,6 @@
-import { test, expect, type Page } from '@playwright/test';
-import { boot, chapter, close, coreItems, items, open, seed, settled } from './annotations-helpers';
+import { type Page } from '@playwright/test';
+import { test, expect } from './helpers/test';
+import { boot, chapter, close, coreItems, items, open, seed, settled } from './helpers/annotations';
 
 // Bookmarks, the annotations panel, re-anchoring, the library-wide highlights view (T11).
 

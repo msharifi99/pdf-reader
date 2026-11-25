@@ -1,4 +1,5 @@
-import { expect, test, type Frame, type Page } from '@playwright/test';
+import { type Frame, type Page } from '@playwright/test';
+import { expect, test } from './helpers/test';
 
 /* The harness (harness/reflow.html) exposes the engine as window.__reflow; everything runs in
    fake-core mode against /fixtures/reflow/*. */

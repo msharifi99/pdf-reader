@@ -470,6 +470,8 @@ export class ReflowEngine implements Engine {
   private teardownView() {
     clearTimeout(this.selTimer);
     clearTimeout(this.resizeTimer);
+    clearTimeout(this.settleTimer);
+    this.settleTimer = 0;
     this.resizeObs?.disconnect();
     this.resizeObs = null;
     this.reducedMotion?.removeEventListener('change', this.onMotion);
@@ -745,6 +747,10 @@ export class ReflowEngine implements Engine {
   }
 
   getLocation(): RelocatedEvent | null {
+    if (this.settleTimer) {
+      clearTimeout(this.settleTimer);
+      this.publishLocation(this.settleReason);
+    }
     return this.lastEvent;
   }
 
@@ -774,7 +780,26 @@ export class ReflowEngine implements Engine {
       reason = force;
       this.nextReason = null;
     }
+    clearTimeout(this.settleTimer);
+    this.settleTimer = 0;
+    // Re-layout echoes (resize, typography, fonts/images arriving) are published once the layout holds still, so the
+    // reader never persists a position measured mid-reflow; getLocation() and dispose flush a pending one.
+    if (!force && (reason === 'resize' || reason === 'presentation')) {
+      this.settleReason = reason;
+      this.settleTimer = window.setTimeout(() => this.publishLocation(reason), 250);
+      this.emit('layout', undefined);
+      return;
+    }
+    this.publishLocation(reason);
+  }
 
+  private settleTimer = 0;
+  private settleReason: RelocatedEvent['reason'] = 'resize';
+
+  private publishLocation(reason: RelocatedEvent['reason']) {
+    const loc = this.view?.lastLocation;
+    if (!loc || !this.book || this.disposed) return;
+    this.settleTimer = 0;
     let cfi: string;
     try {
       cfi = CFI.collapse(loc.cfi);

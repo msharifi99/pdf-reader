@@ -1,4 +1,5 @@
-import { expect, test, type Frame, type Page } from '@playwright/test';
+import { type Frame, type Page } from '@playwright/test';
+import { expect, test } from './helpers/test';
 
 /* Regression tests for the reflow/pdf engine fixes: font cascade, element-level CFIs, location numbers,
    page-turn duration, PDF goToFraction(1) and monotonic progress. */
