@@ -1,6 +1,7 @@
 <script lang="ts">
   // App shell: title bar, library <-> reader routing, overlays, global commands, chrome auto-hide.
-  import { onMount, untrack } from 'svelte';
+  import { onMount, untrack, type Component } from 'svelte';
+  import { loadReader } from './lib/reader/load';
   import { core, coreMode } from './lib/core/core';
   import { commands, contextStack, keymap } from './lib/commands';
   import { engineKindFor } from './lib/engines/sniff';
@@ -12,9 +13,7 @@
   import CheatSheet from './lib/shell/CheatSheet.svelte';
   import DropOverlay from './lib/shell/DropOverlay.svelte';
   import ErrorDialog from './lib/shell/ErrorDialog.svelte';
-  import SettingsSheet from './lib/settings/SettingsSheet.svelte';
   import LibraryView from './lib/library/LibraryView.svelte';
-  import ReaderView from './lib/reader/ReaderView.svelte';
   import { chrome } from './lib/shell/chrome.svelte';
   import { overlays, shellOverlays } from './lib/shell/overlays.svelte';
   import { installThemeManager } from './lib/shell/theme.svelte';
@@ -27,6 +26,11 @@
   import { reducedMotion } from './lib/design/motion';
 
   let fileInput: HTMLInputElement | undefined = $state();
+  // Off the cold path: the reader (and what only it uses) loads when the library goes idle or a book opens;
+  // the palette stays eager: keystrokes typed right after Ctrl+K must find it.
+  let ReaderView: Component<{ bookId: string }> | undefined = $state();
+  const idle = (f: () => void) => ('requestIdleCallback' in window ? requestIdleCallback(f, { timeout: 1500 }) : setTimeout(f, 300));
+
 
   const reading = $derived(app.view === 'reader');
   const settingsOpen = $derived(shellOverlays.settings);
@@ -56,6 +60,10 @@
 
   $effect(() => setFileInput(fileInput ?? null));
 
+  $effect(() => {
+    if (reading) void loadReader().then((c) => (ReaderView = c));
+  });
+
   // tell the core which book this window shows (focus-instead-of-duplicate, session save)
   $effect(() => {
     const id = app.book?.id ?? null;
@@ -64,6 +72,9 @@
 
   onMount(() => {
     const offs: (() => void)[] = [];
+    setTimeout(() => idle(() => {
+      void loadReader().then((c) => (ReaderView = c));
+    }), 250);
     void core.appVersion().then((v) => (app.version = v), () => {});
     void core.windowBackdrop().then((b) => {
       if (b === 'mica') document.documentElement.dataset.mica = '';
@@ -126,7 +137,7 @@
       {#key viewKey}
         <div class="view" in:viewIn out:fade={{ duration: 120 }}>
           {#if reading && app.book}
-            <ReaderView bookId={app.book.id} />
+            {#if ReaderView}<ReaderView bookId={app.book.id} />{/if}
           {:else}
             <LibraryView />
           {/if}
@@ -150,7 +161,7 @@
     </svelte:boundary>
   </main>
 
-  {#if settingsOpen}<SettingsSheet />{/if}
+  {#if settingsOpen}{#await import('./lib/settings/SettingsSheet.svelte') then m}<m.default />{/await}{/if}
 </div>
 
 <Palette />
