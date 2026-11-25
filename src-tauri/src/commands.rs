@@ -18,6 +18,15 @@ pub fn app_version(app: AppHandle) -> String {
     app.package_info().version.to_string()
 }
 
+/// Frontend timing marks for `QUIRE_PERF=1` runs (a no-op otherwise); `at` is epoch ms.
+#[tauri::command]
+#[specta::specta]
+pub fn perf_mark(name: String, at: f64) {
+    if std::env::var_os("QUIRE_PERF").is_some() || std::env::var_os("QUIRE_STARTUP_LOG").is_some() {
+        crate::startup_log(&format!("web:{name} at={}", at as u64));
+    }
+}
+
 /// Returns (and clears) the file paths the app was launched with.
 #[tauri::command]
 #[specta::specta]

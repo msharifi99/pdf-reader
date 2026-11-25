@@ -19,6 +19,7 @@
   import { onMount } from 'svelte';
   import type { Book, Collection, Format, Status } from '../core/bindings';
   import { core } from '../core/core';
+  import { perfMarkAfterPaint } from '../core/perf';
   import { commands, isEditableTarget, keyState } from '../commands';
   import { Button, ContextMenu, EmptyState, Icon, Kbd, Menu, ProgressBar, SearchField, SegmentedControl, type MenuItem } from '../ui';
   import { settings } from '../stores/settings.svelte';
@@ -31,7 +32,7 @@
   import BookCover from './BookCover.svelte';
   import { FORMAT_GROUPS, greeting, isDone } from './format';
   import { cancelLibrarySearch } from '../indexing/search';
-  import { allHighlights, HighlightsView } from '../annotations';
+  import { allHighlights } from '../annotations/library.svelte';
   import {
     filtersActive, lib, openHit, openLibraryBook, provideSearch, reload, searchContents, setPrefs, startCoverPassNow, visibleBooks, type ContentGroup,
   } from './library.svelte';
@@ -47,6 +48,7 @@
   const empty = $derived(lib.loaded && !narrowed && books.length === 0 && lib.collections.length === 0 && !lib.query.collection);
 
   $effect(() => provideSearch(searchEl));
+  $effect(() => { if (lib.loaded) perfMarkAfterPaint('library-interactive'); });
 
   // re-query whenever what is asked for changes (search is instant: one indexed query per keystroke)
   $effect(() => {
@@ -215,7 +217,7 @@
 </script>
 
 <div class="library" bind:this={scroller} data-testid="library-view" data-library-root>
-  {#if allHighlights.open}<HighlightsView />{:else}
+  {#if allHighlights.open}{#await import('../annotations/HighlightsView.svelte') then m}<m.default />{/await}{:else}
   <div class="page">
     <header class="top">
       <h1>{greeting()}</h1>

@@ -31,6 +31,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .disable_serde_phases()
         .commands(collect_commands![
             commands::app_version,
+            commands::perf_mark,
             commands::take_launch_files,
             commands::allow_path,
             commands::window_backdrop,
@@ -93,6 +94,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             index::books_needing_index,
             index::mark_index_failed,
             index::clear_index,
+            index::indexer_done,
             index::set_reading_active,
             ocr::ocr_languages,
             ocr::get_ocr_pages,
@@ -108,9 +110,11 @@ pub fn export_bindings(builder: &Builder<tauri::Wry>) {
         .expect("failed to export typescript bindings");
 }
 
-/// Append a timestamped line to the file named by `QUIRE_STARTUP_LOG` (cold-start measurements).
-fn startup_log(what: &str) {
-    if let Some(p) = std::env::var_os("QUIRE_STARTUP_LOG") {
+/// Append a timestamped line (epoch ms, the same clock as the webview's `performance.timeOrigin`) to the file named
+/// by `QUIRE_STARTUP_LOG`, or to `%TEMP%\quire-perf.log` when `QUIRE_PERF=1` (cold-start measurements).
+pub(crate) fn startup_log(what: &str) {
+    let path = std::env::var_os("QUIRE_STARTUP_LOG").or_else(|| std::env::var_os("QUIRE_PERF").map(|_| std::env::temp_dir().join("quire-perf.log").into_os_string()));
+    if let Some(p) = path {
         use std::io::Write;
         let ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
         if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
@@ -152,6 +156,7 @@ pub fn run() {
         .manage(multiwin::SessionState::default())
         .invoke_handler(backend::raw::handler(builder.invoke_handler()))
         .setup(move |app| {
+            startup_log("setup-start");
             builder.mount_events(app);
             let handle = app.handle();
             app.manage(dictionary::Dictionary::new(dictionary_path(handle)));
@@ -165,7 +170,13 @@ pub fn run() {
             let h = handle.clone();
             let emit: backend::Emitter = std::sync::Arc::new(move |e| {
                 let _ = match e {
-                    CoreEvent::LibraryChanged(ids) => LibraryChanged(ids).emit(&h),
+                    CoreEvent::LibraryChanged(ids) => {
+                        // new books may need indexing; the (re)spawn is debounced inside
+                        if let Some(c) = h.try_state::<std::sync::Arc<Core>>() {
+                            index::schedule_indexer(h.clone(), c.inner().clone(), std::time::Duration::from_secs(5));
+                        }
+                        LibraryChanged(ids).emit(&h)
+                    }
                     CoreEvent::IngestProgress { done, total } => IngestProgress { done, total }.emit(&h),
                     CoreEvent::BackupRestored => BackupRestored(true).emit(&h),
                     CoreEvent::SettingsChanged { key, value } => SettingsChanged { key, value }.emit(&h),
@@ -174,6 +185,7 @@ pub fn run() {
                 };
             });
             let core = std::sync::Arc::new(Core::new(&data_dir, emit).expect("couldn't open the library database"));
+            startup_log("db-open");
             core.start();
             index::schedule_indexer(handle.clone(), core.clone(), std::time::Duration::from_secs(4));
             app.manage(core);
@@ -191,6 +203,7 @@ pub fn run() {
             let launch = app.state::<LaunchFiles>().0.lock().unwrap().clone();
             multiwin::restore(handle, launch);
             startup_log("setup-done");
+            startup_log("window-shown");
             Ok(())
         })
         .on_page_load(|w, payload| {
@@ -206,6 +219,7 @@ pub fn run() {
                 // The normal (restored) size, so a window closed while maximized comes back maximized *over* it.
                 WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
                     if let Some(w) = app.get_webview_window(win.label()) {
+                        window::set_memory_low(&w, w.is_minimized().unwrap_or(false));
                         if !w.is_maximized().unwrap_or(false) && !w.is_minimized().unwrap_or(false) && !w.is_fullscreen().unwrap_or(false) {
                             if let Some(r) = window::outer_rect(&w) {
                                 app.state::<session::Registry>().set_normal(win.label(), r);

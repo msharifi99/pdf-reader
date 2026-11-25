@@ -4,6 +4,7 @@
  */
 import { core, fileUrl, raw } from '../core/core';
 import { onFlush } from '../core/flush';
+import { perfMark, perfMarkAfterPaint } from '../core/perf';
 import { engineKindFor, sniffSource } from '../engines/sniff';
 import type {
   Anchor, BookHandle, BookSource, Decoration, DecorationLayer, Engine, EngineKind, EngineSelection, Fit, Flow, Locator, PageTint, Presentation,
@@ -182,6 +183,7 @@ export class ReaderSession {
    */
   async open(stage: HTMLElement, requestPassword: (retry: boolean) => Promise<string | null>): Promise<void> {
     const t0 = performance.now();
+    perfMark('open-start');
     const signal = this.#abort.signal;
     const id = this.book.id;
     const record = isLibraryId(id) ? quiet(core.getBook(id)) : Promise.resolve(undefined);
@@ -207,6 +209,7 @@ export class ReaderSession {
     if (this.#disposed) return;
     this.openMs = Math.round(performance.now() - t0);
     this.status = 'ready';
+    perfMarkAfterPaint('first-page');
     this.location = engine.getLocation();
     const s = await speed;
     if (s) this.speed = s;

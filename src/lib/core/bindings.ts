@@ -7,6 +7,8 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 /** Commands */
 export const commands = {
 	appVersion: (options?: InvokeOptions) => __TAURI_INVOKE<string>("app_version", undefined, options),
+	/**  Frontend timing marks for `QUIRE_PERF=1` runs (a no-op otherwise); `at` is epoch ms. */
+	perfMark: (name: string, at: number | null, options?: InvokeOptions) => __TAURI_INVOKE<void>("perf_mark", { name, at }, options),
 	/**  Returns (and clears) the file paths the app was launched with. */
 	takeLaunchFiles: (options?: InvokeOptions) => __TAURI_INVOKE<string[]>("take_launch_files", undefined, options),
 	/**  Let the `quire://file?path=` protocol serve this file. Returns false if the path is unreadable. */
@@ -106,6 +108,8 @@ export const commands = {
 	markIndexFailed: (bookId: string, reason: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("mark_index_failed", { bookId, reason }, options),
 	/**  Drop a book's index so it is picked up again (call after OCR finishes). */
 	clearIndex: (bookId: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("clear_index", { bookId }, options),
+	/**  Indexer only: nothing left to index, close the window (it comes back when the library changes). */
+	indexerDone: (options?: InvokeOptions) => __TAURI_INVOKE<null>("indexer_done", undefined, options),
 	/**  Main window: a book is open and being read (`true`) or not (`false`). Pauses/resumes the indexer. */
 	setReadingActive: (active: boolean, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_reading_active", { active }, options),
 	/**  Installed OCR languages; the one OCR uses by default is flagged. */

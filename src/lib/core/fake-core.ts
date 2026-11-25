@@ -252,6 +252,7 @@ export function createFakeRuntime(): CoreRuntime {
 
   const api: CoreApi = {
     appVersion: async () => __APP_VERSION__,
+    perfMark: async () => {},
     takeLaunchFiles: async () => {
       const f = launchFiles;
       launchFiles = [];
@@ -497,6 +498,7 @@ export function createFakeRuntime(): CoreRuntime {
     ocrLanguages: async () => [{ tag: 'en-US', name: 'English (United States)', default: true }],
     getOcrPages: async (bookId) => [...(ocrCache.get(bookId)?.values() ?? [])].sort((a, b) => a.page - b.page),
     ocrStatus: async (bookId) => ({ pagesDone: ocrCache.get(bookId)?.size ?? 0, lang: ocrCache.get(bookId)?.size ? 'en-US' : null }),
+    indexerDone: async () => null,
     clearOcr: async (bookId) => (ocrCache.delete(bookId), textIndex.delete(bookId), null),
     backup: async () => null,
     restore: async () => (restored.forEach((cb) => cb()), null),
