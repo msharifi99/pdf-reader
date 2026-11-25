@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Comic engine harness</title>
+    <style>
+      html, body { height: 100%; margin: 0; background: #16171a; color: #d8d8d0; font: 13px system-ui, sans-serif; }
+      body { display: grid; grid-template-rows: auto 1fr auto; }
+      #bar { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; background: #222428; align-items: center; }
+      #bar button, #bar select, #bar input { font: inherit; padding: 3px 8px; }
+      #stage { position: relative; min-height: 0; }
+      #status { padding: 4px 8px; background: #222428; font-variant-numeric: tabular-nums; }
+    </style>
+  </head>
+  <body>
+    <div id="bar">
+      <select id="file" data-testid="file"></select>
+      <button id="open">Open</button>
+      <button id="left" data-testid="left">&larr;</button>
+      <button id="right" data-testid="right">&rarr;</button>
+      <button id="zin">Zoom +</button>
+      <button id="zout">Zoom -</button>
+      <select id="fit"><option>page</option><option>height</option><option>width</option><option>actual</option></select>
+      <select id="tint"><option>original</option><option>smart</option><option>invert</option></select>
+      <select id="theme"><option>dark</option><option>light</option></select>
+      <select id="flow"><option>paginated</option><option>scrolled</option></select>
+      <select id="spread"><option>single</option><option>double</option><option>auto</option></select>
+      <select id="dir"><option>ltr</option><option>rtl</option></select>
+    </div>
+    <div id="stage" data-testid="stage"></div>
+    <div id="status" data-testid="status"></div>
+    <script type="module" src="./comic.ts"></script>
+  </body>
+</html>

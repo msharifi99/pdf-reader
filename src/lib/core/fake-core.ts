@@ -187,7 +187,13 @@ export function createFakeRuntime(): CoreRuntime {
     coverUrl: async (id) => need(id).coverUrl,
     booksNeedingCovers: async () => (await seed(), visible().filter((b) => b.needsCover && b.available)),
     revealInExplorer: async (id) => (need(id), null),
-    listImageFolder: async () => [],
+    // Fixture folders ship an index.json (the real command is Rust); a single-image path lists its folder.
+    listImageFolder: async (path) => {
+      const p = path.replace(/\\/g, '/');
+      const dir = /\.[a-z0-9]+$/i.test(p) ? p.replace(/\/[^/]*$/, '') : p;
+      const names: string[] = await fetch(`/fixtures/${dir}/index.json`).then((r) => (r.ok ? r.json() : []), () => []);
+      return names.map((n) => `${dir}/${n}`);
+    },
 
     // ---- collections ----
     listCollections: async () =>
@@ -321,6 +327,7 @@ export function createFakeRuntime(): CoreRuntime {
     mode: 'fake',
     api,
     events,
-    fileUrl: (ref) => ('path' in ref ? `/fixtures/${base(ref.path)}` : `/fixtures/${fixtureName.get(ref.bookId) ?? ref.bookId}`),
+    // A relative "folder/file" path (fixture sub-folders such as comic/images) keeps its folder; absolute paths flatten to the file name.
+    fileUrl: (ref) => ('path' in ref ? `/fixtures/${/^[\w.-]+\/[\w./-]+$/.test(ref.path) ? ref.path : base(ref.path)}` : `/fixtures/${fixtureName.get(ref.bookId) ?? ref.bookId}`),
   };
 }
