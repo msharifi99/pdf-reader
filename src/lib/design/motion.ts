@@ -4,7 +4,7 @@ import { reducedMotion } from './themes';
 
 export { reducedMotion };
 
-export const durations = { instant: 80, fast: 120, base: 160, slow: 200, chrome: 240 } as const;
+export const durations = { instant: 80, fast: 120, base: 160, slow: 200, chrome: 200 } as const;
 
 // cubic-bezier(0.16, 1, 0.3, 1) approximated as a quint ease-out; close enough for JS tweens.
 export const easeOut = (t: number) => 1 - (1 - t) ** 5;

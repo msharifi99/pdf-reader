@@ -279,7 +279,10 @@ export const currentTheme = () => current;
  * Apply a theme to :root. Cross-fades with the View Transitions API when motion is allowed.
  * Resolves after the transition finishes. Returns the Mica variant for the native window.
  */
-export async function applyTheme(t: AppTheme, opts: { animate?: boolean } = {}): Promise<AppTheme['mica']> {
+export async function applyTheme(
+  t: AppTheme,
+  opts: { animate?: boolean; /** runs with the new vars in place, inside the cross-fade (e.g. to recolour book iframes) */ onApply?: (t: AppTheme) => void | Promise<void> } = {},
+): Promise<AppTheme['mica']> {
   const root = document.documentElement;
   const write = () => {
     for (const [k, v] of Object.entries(themeVars(t))) {
@@ -293,11 +296,15 @@ export async function applyTheme(t: AppTheme, opts: { animate?: boolean } = {}):
   const animate = (opts.animate ?? current !== null) && !reducedMotion() && 'startViewTransition' in document;
   if (!animate) {
     write();
+    await opts.onApply?.(t);
     return t.mica;
   }
   root.dataset.themeTransition = '';
   try {
-    await document.startViewTransition(write).finished;
+    await document.startViewTransition(async () => {
+      write();
+      await opts.onApply?.(t);
+    }).finished;
   } finally {
     delete root.dataset.themeTransition;
   }

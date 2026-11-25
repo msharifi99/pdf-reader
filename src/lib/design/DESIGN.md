@@ -122,7 +122,7 @@ Every floating surface also gets a 1px `--border`, because dark themes rely on t
 | `--dur-fast` | 120 | hover, colour, chrome fade-*in* |
 | `--dur-base` | 160 | menus, popovers, toggles, segmented indicator |
 | `--dur-slow` | 200 | dialogs, sidebars, theme cross-fade, progress fill, cover lift |
-| `--dur-chrome` | 240 | chrome fade-*out*, after `--chrome-hide-delay` 2000 ms |
+| `--dur-chrome` | 200 | chrome fade-*out*, after `--chrome-hide-delay` 2000 ms |
 
 - Easings:
   - `--ease-out` (default) for things arriving.
@@ -171,7 +171,7 @@ Under `forced-colors: active`, the tokens map to system colours (Canvas, CanvasT
 
 ## 5. Chrome that fades
 
-The shell sets `<html data-chrome-hidden>` 2 s after the last pointer move or key press, in the reader only, and never while a menu, popover, dialog or focused control in the chrome is active. Mark chrome with `data-chrome="top" | "bottom" | ""`. When hidden, chrome fades to 0 over 240 ms, drifts 4px toward its edge, and the cursor hides. Any input brings it back in 120 ms. The progress line is not chrome: it stays visible at 2px. In focus mode it hides too.
+The shell sets `<html data-chrome-hidden>` 2 s after the last pointer move or key press, in the reader only, and never while a menu, popover, dialog or focused control in the chrome is active. Mark chrome with `data-chrome="top" | "bottom" | ""`. When hidden, chrome fades to 0 over 200 ms, drifts 4px toward its edge, and the cursor hides. Any input brings it back in 120 ms. The progress line is not chrome: it stays visible at 2px. In focus mode it hides too.
 
 ## 6. Components (`src/lib/ui`)
 

@@ -39,6 +39,8 @@
   /* chrome (title bar, toolbars, sidebars) floats over content; translucent so Mica shows through */
   --chrome-bg: color-mix(in oklab, var(--bg) 82%, transparent);
   --chrome-bg-solid: color-mix(in oklab, var(--surface) 94%, var(--bg));
+  /* reader chrome floating over pages and images: almost opaque, so a blurred picture never shows through */
+  --chrome-bg-over: color-mix(in oklab, var(--bg) 95%, transparent);
   --flyout-bg: var(--surface-2);
   --track: color-mix(in oklab, var(--text) 14%, transparent);
   --focus-ring-color: var(--accent);
@@ -116,7 +118,7 @@
   --dur-fast: 120ms;     /* hover, colour */
   --dur-base: 160ms;     /* popovers, menus, toggles */
   --dur-slow: 200ms;     /* dialogs, sidebars, theme cross-fade */
-  --dur-chrome: 240ms;   /* chrome fade-out (fade-in uses --dur-fast) */
+  --dur-chrome: 200ms;   /* chrome fade-out (fade-in uses --dur-fast) */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);       /* default: decelerate, things arriving */
   --ease-in: cubic-bezier(0.5, 0, 0.75, 0);        /* things leaving */
   --ease-in-out: cubic-bezier(0.45, 0, 0.25, 1);   /* moving within the screen */
@@ -140,6 +142,7 @@
   --control-md: 32px;
   --control-lg: 40px;
   --titlebar-h: 40px;
+  --statusbar-h: 34px;
   --sidebar-w: 300px;
   --icon-sm: 16px;
   --icon-md: 20px;
@@ -180,10 +183,18 @@
     --selected: Highlight !important;
     --accent-soft: Highlight !important;
     --chrome-bg: Canvas !important;
+    --chrome-bg-over: Canvas !important;
     --flyout-bg: Canvas !important;
     --focus-ring-color: Highlight !important;
     --shadow-1: none; --shadow-2: none; --shadow-3: none; --shadow-4: none;
     --shadow-cover: none; --shadow-cover-hover: none;
+  }
+  /* Anything drawn on a Highlight fill (pressed toggles, current nav item, selected rows) reads as
+     HighlightText, icons included. */
+  :is([aria-pressed='true'], [aria-current='page'], [aria-selected='true']),
+  :is([aria-pressed='true'], [aria-current='page'], [aria-selected='true']) * {
+    color: HighlightText !important;
+    forced-color-adjust: none; /* no Canvas backplate behind that text */
   }
 }
 
@@ -229,9 +240,18 @@ p { text-wrap: pretty; }
   border-radius: inherit;
 }
 
-/* Scrollbars: thin, rounded thumb, transparent track, like Windows 11 overlay scrollbars. */
-* { scrollbar-width: thin; scrollbar-color: color-mix(in oklab, var(--text) 24%, transparent) transparent; }
-*:hover { scrollbar-color: color-mix(in oklab, var(--text) 38%, transparent) transparent; }
+/* Scrollbars: thin, rounded thumb, transparent track and no arrow buttons, like Windows 11 overlay
+   scrollbars. WebView2 draws arrows for the standard scrollbar-width/-color properties, so these use
+   the -webkit- pseudo-elements (setting scrollbar-width on an element would switch them off). */
+::-webkit-scrollbar { width: var(--scrollbar); height: var(--scrollbar); background: transparent; }
+::-webkit-scrollbar-button, ::-webkit-scrollbar-corner { display: none; }
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: var(--radius-full);
+  background: color-mix(in oklab, var(--text) 24%, transparent) padding-box;
+}
+:hover::-webkit-scrollbar-thumb { background-color: color-mix(in oklab, var(--text) 34%, transparent); }
+::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active { border-width: 2px; background-color: color-mix(in oklab, var(--text) 46%, transparent); }
 
 /* Theme cross-fade (View Transitions). */
 ::view-transition-old(root),

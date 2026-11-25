@@ -5,6 +5,7 @@
  *
  *   import { allThemes, themeById, activeTheme, installThemeManager } from '../shell/theme.svelte';
  */
+import { tick } from 'svelte';
 import { applyTheme, builtinThemes, deriveTheme, themeVars, type AppTheme } from '../design/themes';
 import { settings, type CustomThemeSeed } from '../stores/settings.svelte';
 import { isTauri } from '../core/core';
@@ -41,8 +42,17 @@ export function themeById(id: string): AppTheme | undefined {
 
 const systemDark = $state({ value: typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches });
 
-/** The theme that should be showing right now. */
+// The theme on screen. It changes inside the cross-fade, so everything that paints with it (the book
+// iframes too) lands in the transition's "new" snapshot instead of jumping ahead of it.
+let shown = $state.raw<AppTheme | null>(null);
+
+/** The theme showing right now (what readers and previews should paint with). */
 export function activeTheme(): AppTheme {
+  return shown ?? wantedTheme();
+}
+
+/** The theme the settings ask for (applied by the theme manager). */
+function wantedTheme(): AppTheme {
   const s = settings.value;
   const id = s.followSystem ? (systemDark.value ? s.darkTheme : s.lightTheme) : s.theme;
   return themeById(id) ?? builtinThemes[0]!;
@@ -97,14 +107,18 @@ export function installThemeManager(): () => void {
 
   const stop = $effect.root(() => {
     $effect(() => {
-      const t = activeTheme();
+      const t = wantedTheme();
       const key = JSON.stringify(themeVars(t));
       if (t.id === lastId && key === lastKey) return;
       lastId = t.id;
       lastKey = key;
       const animate = !first;
       first = false;
-      void applyTheme(t, { animate }).then((mica) => {
+      const onApply = (th: AppTheme) => {
+        shown = th;
+        return tick();
+      };
+      void applyTheme(t, { animate, onApply }).then((mica) => {
         void setMica(mica);
         remember(t);
       });
@@ -124,7 +138,7 @@ export function installThemeManager(): () => void {
 /** Cycle to the next theme (fixes the choice: following Windows turns off). */
 export function nextTheme(): void {
   const list = allThemes();
-  const cur = activeTheme();
+  const cur = wantedTheme();
   const i = list.findIndex((t) => t.id === cur.id);
   setTheme(list[(i + 1) % list.length]!.id);
 }
