@@ -253,6 +253,21 @@ export function createFakeRuntime(): CoreRuntime {
     windowToggleFullscreen: async () => {},
     windowStartDrag: async () => {},
     windowSetMaxbtnRect: async () => {},
+    // A browser has one window: the UI falls back to opening in place, so this is never called.
+    openBookWindow: async () => 'reader-1',
+    windowSetBook: async () => {},
+    // The persisted session is `localStorage['quire.fake.session']` in the Rust format, so tests can plant one.
+    takeSessionBook: async () => {
+      const raw = localStorage.getItem('quire.fake.session');
+      localStorage.removeItem('quire.fake.session');
+      if (!raw || settings.get('restoreSession') === false) return null;
+      try {
+        const s = JSON.parse(raw) as { windows?: { label: string; bookId?: string | null }[] };
+        return s.windows?.find((w) => w.label === 'main')?.bookId ?? null;
+      } catch {
+        return null;
+      }
+    },
 
     // ---- library ----
     openDocument: async (path) => {

@@ -23,6 +23,12 @@ export const commands = {
 	 *  snap-layout flyout over it. Pass width 0 to disable (e.g. while fullscreen).
 	 */
 	windowSetMaxbtnRect: (x: number, y: number, w: number, h: number, options?: InvokeOptions) => __TAURI_INVOKE<void>("window_set_maxbtn_rect", { x, y, w, h }, options),
+	/**  Open a book in its own window (or focus the window that already shows it). Returns the label. */
+	openBookWindow: (bookId: string, locator: Json | null, options?: InvokeOptions) => __TAURI_INVOKE<string>("open_book_window", { bookId, locator }, options),
+	/**  The window reports which book it shows (None: the library) for dedupe and session save. */
+	windowSetBook: (bookId: string | null, options?: InvokeOptions) => __TAURI_INVOKE<void>("window_set_book", { bookId }, options),
+	/**  The main window's book from the last session, once. None when restore is off or there was none. */
+	takeSessionBook: (options?: InvokeOptions) => __TAURI_INVOKE<string | null>("take_session_book", undefined, options),
 	/**
 	 *  Add (or re-link) the file/folder/image to the library and return it with its saved progress.
 	 *  A folder opens as a book over its images; a single image opens its folder, `startImage` set.

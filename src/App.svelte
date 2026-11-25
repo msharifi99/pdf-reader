@@ -19,7 +19,7 @@
   import { overlays, shellOverlays } from './lib/shell/overlays.svelte';
   import { installThemeManager } from './lib/shell/theme.svelte';
   import { registerGlobalCommands, registerThemeCommands } from './lib/shell/globalCommands';
-  import { installDragDrop, installWindowState, setFileInput, SUPPORTED_EXTENSIONS } from './lib/shell/window.svelte';
+  import { bootOpen, installDragDrop, installWindowState, registerSessionCommands, setFileInput, SUPPORTED_EXTENSIONS } from './lib/shell/window.svelte';
   import { reportError } from './lib/shell/errors.svelte';
   import { openPalette, registerPaletteProvider } from './lib/shell/palette/providers.svelte';
   import { fade } from './lib/design/motion';
@@ -56,6 +56,12 @@
 
   $effect(() => setFileInput(fileInput ?? null));
 
+  // tell the core which book this window shows (focus-instead-of-duplicate, session save)
+  $effect(() => {
+    const id = app.book?.id ?? null;
+    void core.windowSetBook(id).catch(() => {});
+  });
+
   onMount(() => {
     const offs: (() => void)[] = [];
     void core.appVersion().then((v) => (app.version = v));
@@ -87,10 +93,9 @@
     window.addEventListener('pagehide', flush);
     offs.push(() => window.removeEventListener('pagehide', flush));
 
-    // files Quire was launched with (Explorer "Open with", file association)
-    void core.takeLaunchFiles().then((paths) => {
-      if (paths[0]) void openDocument(paths[0]);
-    });
+    offs.push(registerSessionCommands());
+    // the book this window was opened for, the launch files, or last session's book
+    void bootOpen();
 
     if (coreMode() === 'fake') {
       (globalThis as Record<string, unknown>).__QUIRE__ = { commands, keymap, settings, app, contextStack, openDocument, closeBook, registerPaletteProvider, openPalette };

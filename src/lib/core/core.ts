@@ -102,6 +102,11 @@ export function coreMode(): 'tauri' | 'fake' {
 
 export const isTauri = (): boolean => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
+async function thisWindow() {
+  const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+  return getCurrentWebviewWindow();
+}
+
 /** Pick the implementation. Call once from main.ts. */
 export async function initCore(): Promise<CoreRuntime> {
   if (runtime) return runtime;
@@ -111,8 +116,9 @@ export async function initCore(): Promise<CoreRuntime> {
       mode: 'tauri',
       api: commands,
       events: {
-        onOpenFiles: (cb) => events.openFiles.listen((e) => cb(e.payload)),
-        onMaxButtonHover: (cb) => events.maxButtonHover.listen((e) => cb(e.payload)),
+        // window-scoped: with several windows, each hears only events addressed to it (or broadcast)
+        onOpenFiles: async (cb) => events.openFiles(await thisWindow()).listen((e) => cb(e.payload)),
+        onMaxButtonHover: async (cb) => events.maxButtonHover(await thisWindow()).listen((e) => cb(e.payload)),
         onLibraryChanged: (cb) => events.libraryChanged.listen((e) => cb(e.payload)),
         onIngestProgress: (cb) => events.ingestProgress.listen((e) => cb(e.payload)),
         onBackupRestored: (cb) => events.backupRestored.listen(() => cb()),

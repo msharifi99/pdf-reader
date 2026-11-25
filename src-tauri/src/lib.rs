@@ -2,6 +2,8 @@ pub mod backend;
 pub mod dictionary;
 mod commands;
 pub mod protocol;
+mod multiwin;
+pub mod session;
 mod window;
 
 use std::path::Path;
@@ -36,6 +38,9 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::window_toggle_fullscreen,
             commands::window_start_drag,
             commands::window_set_maxbtn_rect,
+            multiwin::open_book_window,
+            multiwin::window_set_book,
+            multiwin::take_session_book,
             bc::open_document,
             bc::list_books,
             bc::get_book,
@@ -99,12 +104,14 @@ pub fn export_bindings(builder: &Builder<tauri::Wry>) {
         .expect("failed to export typescript bindings");
 }
 
-/// Allow-list `paths` and tell the frontend to open them.
-fn open_files(app: &AppHandle, paths: Vec<String>) {
-    let allow = app.state::<AllowList>();
-    let paths: Vec<String> = paths.into_iter().filter(|p| allow.allow(Path::new(p)).is_ok()).collect();
-    if !paths.is_empty() {
-        let _ = OpenFiles(paths).emit(app);
+/// Append a timestamped line to the file named by `QUIRE_STARTUP_LOG` (cold-start measurements).
+fn startup_log(what: &str) {
+    if let Some(p) = std::env::var_os("QUIRE_STARTUP_LOG") {
+        use std::io::Write;
+        let ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+            let _ = writeln!(f, "{ms} pid={} {what}", std::process::id());
+        }
     }
 }
 
@@ -114,6 +121,7 @@ fn file_args(argv: &[String]) -> Vec<String> {
 }
 
 pub fn run() {
+    startup_log("run");
     let builder = specta_builder();
     #[cfg(debug_assertions)]
     export_bindings(&builder);
@@ -122,13 +130,12 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            open_files(app, file_args(&argv));
-            if let Some(w) = app.get_webview_window("main") {
-                let _ = w.unminimize();
-                let _ = w.set_focus();
-            }
+            startup_log("second-instance");
+            multiwin::route_files(app, file_args(&argv));
         }))
-        .plugin(tauri_plugin_window_state::Builder::default().with_denylist(&["indexer"]).build())
+        // Only the main window uses the plugin: reader windows get fresh labels each run, so their
+        // bounds are saved in the session instead.
+        .plugin(tauri_plugin_window_state::Builder::default().with_filter(|label| label == session::MAIN).build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
@@ -136,6 +143,8 @@ pub fn run() {
         .manage(AllowList::default())
         .manage(window::Backdrop::default())
         .manage(LaunchFiles::default())
+        .manage(session::Registry::default())
+        .manage(multiwin::SessionState::default())
         .invoke_handler(backend::raw::handler(builder.invoke_handler()))
         .setup(move |app| {
             builder.mount_events(app);
@@ -168,21 +177,44 @@ pub fn run() {
                 let ok: Vec<String> = launch.iter().filter(|p| allow.allow(Path::new(p)).is_ok()).cloned().collect();
                 *app.state::<LaunchFiles>().0.lock().unwrap() = ok;
             }
-            if let Some(w) = app.get_webview_window("main") {
+            if let Some(w) = app.get_webview_window(session::MAIN) {
+                app.state::<session::Registry>().add(session::MAIN);
                 window::setup(handle, &w);
+                window::ensure_on_screen(handle, &w); // the saved monitor may be gone
             }
+            let launch = app.state::<LaunchFiles>().0.lock().unwrap().clone();
+            multiwin::restore(handle, launch);
+            startup_log("setup-done");
             Ok(())
         })
-        .on_window_event(|win, event| {
-            // The hidden indexer must not keep the app alive after the main window closes.
-            if win.label() == "main" && matches!(event, WindowEvent::CloseRequested { .. }) {
-                if let Some(w) = win.app_handle().get_webview_window("indexer") {
-                    let _ = w.destroy();
-                }
+        .on_page_load(|w, payload| {
+            if w.label() == session::MAIN && matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
+                startup_log("main-page-loaded");
             }
-            if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) = event {
-                let paths = paths.iter().map(|p| p.to_string_lossy().into_owned()).collect();
-                open_files(win.app_handle(), paths);
+        })
+        .on_window_event(|win, event| {
+            let app = win.app_handle();
+            match event {
+                WindowEvent::Focused(true) => app.state::<session::Registry>().focus(win.label()),
+                WindowEvent::Destroyed => app.state::<session::Registry>().remove(win.label()),
+                // Closing the main window quits the app: save what is open, let the other windows
+                // save their reading position and close, and drop the hidden indexer.
+                WindowEvent::CloseRequested { .. } if win.label() == session::MAIN => {
+                    multiwin::save_session(app);
+                    multiwin::close_all_but(app, session::MAIN);
+                    if let Some(w) = app.get_webview_window("indexer") {
+                        let _ = w.destroy();
+                    }
+                }
+                // Dropped files open in the window they were dropped on.
+                WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) => {
+                    let allow = app.state::<AllowList>();
+                    let paths: Vec<String> = paths.iter().map(|p| p.to_string_lossy().into_owned()).filter(|p| allow.allow(Path::new(p)).is_ok()).collect();
+                    if !paths.is_empty() {
+                        let _ = OpenFiles(paths).emit_to(app, win.label());
+                    }
+                }
+                _ => {}
             }
         })
         .run(tauri::generate_context!())

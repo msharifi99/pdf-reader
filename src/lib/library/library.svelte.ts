@@ -16,6 +16,7 @@ import { app, openDocument } from '../stores/app.svelte';
 import { settings } from '../stores/settings.svelte';
 import { presentError, reportError, ShellError } from '../shell/errors.svelte';
 import { overlays } from '../shell/overlays.svelte';
+import { openInNewWindow } from '../shell/window.svelte';
 import { openPalette, registerPaletteProvider } from '../shell/palette/providers.svelte';
 import { toast } from '../ui';
 import { librarySearch, type BookHits } from '../indexing/search';
@@ -94,13 +95,13 @@ export const startCoverPassNow = (): void => startCoverPass(coverSaved);
 
 // ---- actions ---------------------------------------------------------------------------------
 
-/** Open a library book (in this window for now). Never throws. */
+/** Open a library book here, or in its own window with `newWindow`. Never throws. */
 export async function openLibraryBook(book: Book, opts: { locator?: Locator; newWindow?: boolean } = {}): Promise<boolean> {
   if (!book.available || !book.path) {
     presentError(new ShellError('not-found'), { fileName: book.title });
     return false;
   }
-  // TODO(T14): opts.newWindow should open a second window (story 121); it opens here until multi-window exists.
+  if (opts.newWindow) return openInNewWindow(book, opts.locator);
   return openDocument(book.path, { locator: opts.locator });
 }
 
@@ -261,7 +262,6 @@ export function installLibrary(): void {
 
   commands.register([
     defineCommand('app.switchBook', () => openPalette({ mode: 'books' })),
-    // TODO(T14): a real second window. Until then this opens the book here.
     defineCommand('app.newWindow', withBook((b) => openLibraryBook(b, { newWindow: true }))),
     defineCommand('library.open', withBook((b) => openLibraryBook(b)), inLibrary),
     defineCommand('library.openInNewWindow', withBook((b) => commands.execute('app.newWindow', { bookId: b.id })), inLibrary),

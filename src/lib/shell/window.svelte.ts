@@ -3,7 +3,18 @@
  * (Ctrl+O picker, drag-and-drop). Works in Tauri and in a plain browser (fake core).
  */
 import { core, coreEvents, isTauri } from '../core/core';
+import type { Locator } from '../engines/types';
 import { openDocument } from '../stores/app.svelte';
+import { commands } from '../commands';
+import { presentError } from './errors.svelte';
+import { toast } from '../ui';
+
+declare global {
+  interface Window {
+    /** Set by the core for windows it opens: show this book straight away. */
+    __QUIRE_BOOT__?: { bookId?: string; locator?: Locator | null };
+  }
+}
 
 export const SUPPORTED_EXTENSIONS = [
   'pdf', 'epub', 'mobi', 'azw3', 'azw', 'fb2', 'fbz', 'cbz', 'cbr',
@@ -56,6 +67,64 @@ export async function toggleFullscreen(): Promise<void> {
   }
   if (document.fullscreenElement) await document.exitFullscreen();
   else await document.documentElement.requestFullscreen().catch(() => {});
+}
+
+/**
+ * Open a book in its own window (story 121). The core focuses the window that already shows it.
+ * Without a native shell (browser, tests) there is only one window: open it here instead.
+ */
+export async function openInNewWindow(book: { id: string; path?: string | null; title?: string }, locator?: Locator): Promise<boolean> {
+  try {
+    if (isTauri()) {
+      await core.openBookWindow(book.id, (locator ?? null) as never);
+      return true;
+    }
+  } catch (err) {
+    presentError(err, { fileName: book.title });
+    return false;
+  }
+  return book.path ? openDocument(book.path, { locator }) : false;
+}
+
+async function openById(id: string, locator?: Locator | null): Promise<void> {
+  try {
+    const b = await core.getBook(id);
+    if (b.available && b.path) await openDocument(b.path, { locator: locator ?? undefined });
+  } catch {
+    /* the book left the library since: stay on the library */
+  }
+}
+
+/**
+ * What a freshly booted window shows: the book the core opened it for, else the files Quire was
+ * launched with (they win over the saved session), else the book it showed last time.
+ */
+export async function bootOpen(): Promise<void> {
+  const boot = window.__QUIRE_BOOT__;
+  if (boot?.bookId) return openById(boot.bookId, boot.locator);
+  const files = await core.takeLaunchFiles();
+  if (files[0]) {
+    await openDocument(files[0]);
+    return;
+  }
+  const id = await core.takeSessionBook();
+  if (id) await openById(id);
+}
+
+/** Palette command: restore the open windows and books on launch (default on). */
+export function registerSessionCommands(): () => void {
+  return commands.register({
+    id: 'app.toggleRestoreSession',
+    title: 'Restore windows on launch: toggle',
+    category: 'App',
+    contexts: ['global'],
+    keywords: ['session', 'reopen', 'startup'],
+    run: async () => {
+      const on = (await core.getSetting('restoreSession')) !== false;
+      await core.setSetting('restoreSession', !on as never);
+      toast(on ? 'Quire will open to your library next time.' : 'Quire will reopen your windows and books next time.');
+    },
+  });
 }
 
 let fileInput: HTMLInputElement | null = null;

@@ -7,8 +7,10 @@
 //! (2) park a tiny invisible child window of our own, same thread, on top of the webview over
 //! that rect; it answers `HTTRANSPARENT`, which makes the hit test fall through to its
 //! parent (the top-level window). The frontend reports the button rect via
-//! `window_set_maxbtn_rect`, and receives `MaxButtonHover` events because the webview no
-//! longer sees the mouse over that rect (so it must draw the hover state itself).
+//! `window_set_maxbtn_rect`, and receives `MaxButtonHover` events (addressed to that window)
+//! because the webview no longer sees the mouse over that rect.
+//!
+//! Every window has its own [`SnapState`] in a map keyed by HWND, so any number of windows work.
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, WebviewWindow};
@@ -43,11 +45,50 @@ pub fn toggle_maximize(w: &WebviewWindow) {
     let _ = if w.is_maximized().unwrap_or(false) { w.unmaximize() } else { w.maximize() };
 }
 
+/// Snap-layout state of one window: the maximize button rect (top-level client physical px:
+/// x, y, w, h), its overlay child window, whether the cursor is over it, and the window label
+/// the hover event is addressed to.
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct SnapState {
+    pub rect: [i32; 4],
+    pub overlay: isize,
+    pub hover: bool,
+    pub label: String,
+}
+
+impl SnapState {
+    pub fn hits(&self, x: i32, y: i32) -> bool {
+        let [rx, ry, w, h] = self.rect;
+        w > 0 && x >= rx && x < rx + w && y >= ry && y < ry + h
+    }
+}
+
+/// HWND -> state.
+pub struct SnapMap(std::sync::Mutex<std::collections::BTreeMap<isize, SnapState>>);
+
+impl SnapMap {
+    pub const fn new() -> Self {
+        SnapMap(std::sync::Mutex::new(std::collections::BTreeMap::new()))
+    }
+    pub fn with<R>(&self, hwnd: isize, f: impl FnOnce(&mut SnapState) -> R) -> Option<R> {
+        self.0.lock().unwrap().get_mut(&hwnd).map(f)
+    }
+    pub fn insert(&self, hwnd: isize, st: SnapState) {
+        self.0.lock().unwrap().insert(hwnd, st);
+    }
+    pub fn remove(&self, hwnd: isize) {
+        self.0.lock().unwrap().remove(&hwnd);
+    }
+    #[cfg(test)]
+    pub fn len(&self) -> usize {
+        self.0.lock().unwrap().len()
+    }
+}
+
 #[cfg(windows)]
 mod snap {
     use super::*;
-    use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
-    use std::sync::{Mutex, OnceLock};
+    use std::sync::OnceLock;
     use windows::core::w;
     use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, POINT, WPARAM};
     use windows::Win32::Graphics::Gdi::ScreenToClient;
@@ -57,10 +98,7 @@ mod snap {
     use windows::Win32::UI::WindowsAndMessaging::*;
 
     static APP: OnceLock<AppHandle> = OnceLock::new();
-    static OVERLAY: AtomicIsize = AtomicIsize::new(0);
-    static HOVER: AtomicBool = AtomicBool::new(false);
-    /// Maximize button rect in top-level client physical pixels: x, y, w, h.
-    static RECT: Mutex<[i32; 4]> = Mutex::new([0; 4]);
+    static STATES: SnapMap = SnapMap::new();
 
     fn hwnd_of(w: &WebviewWindow) -> Option<HWND> {
         w.hwnd().ok().map(|h| HWND(h.0 as _))
@@ -69,41 +107,33 @@ mod snap {
     pub fn install(app: &AppHandle, window: &WebviewWindow) {
         let Some(top) = hwnd_of(window) else { return };
         let _ = APP.set(app.clone());
+        let mut st = SnapState { label: window.label().to_string(), ..Default::default() };
         unsafe {
-            let _ = SetWindowSubclass(top, Some(top_proc), 1, 0);
             let hinst = GetModuleHandleW(None).unwrap_or_default();
             let class = w!("QuireSnapOverlay");
-            let wc = WNDCLASSW {
-                lpfnWndProc: Some(overlay_proc),
-                hInstance: hinst.into(),
-                lpszClassName: class,
-                ..Default::default()
-            };
-            RegisterClassW(&wc);
-            if let Ok(ov) = CreateWindowExW(
-                WS_EX_LAYERED | WS_EX_NOACTIVATE,
-                class,
-                None,
-                WS_CHILD | WS_CLIPSIBLINGS,
-                0, 0, 0, 0,
-                Some(top),
-                None,
-                Some(hinst.into()),
-                None,
-            ) {
+            let wc = WNDCLASSW { lpfnWndProc: Some(overlay_proc), hInstance: hinst.into(), lpszClassName: class, ..Default::default() };
+            RegisterClassW(&wc); // fails harmlessly when an earlier window registered it
+            if let Ok(ov) = CreateWindowExW(WS_EX_LAYERED | WS_EX_NOACTIVATE, class, None, WS_CHILD | WS_CLIPSIBLINGS, 0, 0, 0, 0, Some(top), None, Some(hinst.into()), None) {
                 // alpha 1/255: effectively invisible, but avoids an unpainted hole.
                 let _ = SetLayeredWindowAttributes(ov, COLORREF(0), 1, LWA_ALPHA);
-                OVERLAY.store(ov.0 as isize, Ordering::SeqCst);
+                st.overlay = ov.0 as isize;
             }
+            STATES.insert(top.0 as isize, st);
+            let _ = SetWindowSubclass(top, Some(top_proc), 1, 0);
         }
     }
 
     /// `x,y,w,h` in CSS px relative to the webview (== client area). `w == 0` disables.
     pub fn set_rect(window: &WebviewWindow, x: f64, y: f64, w: f64, h: f64) {
+        let Some(top) = hwnd_of(window) else { return };
         let s = window.scale_factor().unwrap_or(1.0);
         let r = [(x * s).round() as i32, (y * s).round() as i32, (w * s).round() as i32, (h * s).round() as i32];
-        *RECT.lock().unwrap() = r;
-        let ov = OVERLAY.load(Ordering::SeqCst);
+        let Some(ov) = STATES.with(top.0 as isize, |st| {
+            st.rect = r;
+            st.overlay
+        }) else {
+            return;
+        };
         if ov == 0 {
             return;
         }
@@ -117,9 +147,9 @@ mod snap {
         }
     }
 
-    fn emit_hover(v: bool) {
+    fn emit_hover(label: &str, v: bool) {
         if let Some(app) = APP.get() {
-            let _ = MaxButtonHover(v).emit(app);
+            let _ = MaxButtonHover(v).emit_to(app, label);
         }
     }
 
@@ -131,30 +161,29 @@ mod snap {
     }
 
     unsafe extern "system" fn top_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM, _id: usize, _data: usize) -> LRESULT {
+        let key = hwnd.0 as isize;
         match msg {
             WM_NCHITTEST => {
                 let mut pt = POINT { x: (lp.0 & 0xFFFF) as i16 as i32, y: ((lp.0 >> 16) & 0xFFFF) as i16 as i32 };
                 let _ = ScreenToClient(hwnd, &mut pt);
-                let [x, y, w, h] = *RECT.lock().unwrap();
-                if w > 0 && pt.x >= x && pt.x < x + w && pt.y >= y && pt.y < y + h {
+                if STATES.with(key, |st| st.hits(pt.x, pt.y)).unwrap_or(false) {
                     return LRESULT(HTMAXBUTTON as isize);
                 }
             }
             WM_NCMOUSEMOVE if wp.0 as u32 == HTMAXBUTTON => {
-                if !HOVER.swap(true, Ordering::SeqCst) {
-                    emit_hover(true);
+                if let Some((was, label)) = STATES.with(key, |st| (std::mem::replace(&mut st.hover, true), st.label.clone())) {
+                    if !was {
+                        emit_hover(&label, true);
+                    }
                 }
-                let mut t = TRACKMOUSEEVENT {
-                    cbSize: std::mem::size_of::<TRACKMOUSEEVENT>() as u32,
-                    dwFlags: TME_LEAVE | TME_NONCLIENT,
-                    hwndTrack: hwnd,
-                    dwHoverTime: 0,
-                };
+                let mut t = TRACKMOUSEEVENT { cbSize: std::mem::size_of::<TRACKMOUSEEVENT>() as u32, dwFlags: TME_LEAVE | TME_NONCLIENT, hwndTrack: hwnd, dwHoverTime: 0 };
                 let _ = TrackMouseEvent(&mut t);
             }
             WM_NCMOUSELEAVE => {
-                if HOVER.swap(false, Ordering::SeqCst) {
-                    emit_hover(false);
+                if let Some((was, label)) = STATES.with(key, |st| (std::mem::replace(&mut st.hover, false), st.label.clone())) {
+                    if was {
+                        emit_hover(&label, false);
+                    }
                 }
             }
             WM_NCLBUTTONDOWN if wp.0 as u32 == HTMAXBUTTON => return LRESULT(0),
@@ -163,6 +192,7 @@ mod snap {
                 return LRESULT(0);
             }
             WM_NCDESTROY => {
+                STATES.remove(key);
                 let _ = RemoveWindowSubclass(hwnd, Some(top_proc), 1);
             }
             _ => {}
@@ -176,4 +206,68 @@ pub fn set_maxbtn_rect(window: &WebviewWindow, x: f64, y: f64, w: f64, h: f64) {
     snap::set_rect(window, x, y, w, h);
     #[cfg(not(windows))]
     let _ = (window, x, y, w, h);
+}
+
+/// Monitors as physical rects, primary first.
+pub fn monitor_rects(app: &AppHandle) -> Vec<crate::session::Rect> {
+    let rect = |m: &tauri::Monitor| crate::session::Rect { x: m.position().x, y: m.position().y, w: m.size().width, h: m.size().height };
+    let mut v: Vec<_> = app.primary_monitor().ok().flatten().iter().map(rect).collect();
+    for m in app.available_monitors().unwrap_or_default() {
+        let r = rect(&m);
+        if !v.contains(&r) {
+            v.push(r);
+        }
+    }
+    v
+}
+
+/// A window's position (outer) and size (inner, which is what `set_size` takes: no growth on restore), physical px.
+pub fn outer_rect(w: &WebviewWindow) -> Option<crate::session::Rect> {
+    let (p, s) = (w.outer_position().ok()?, w.inner_size().ok()?);
+    Some(crate::session::Rect { x: p.x, y: p.y, w: s.width, h: s.height })
+}
+
+/// Move a window back on screen if the monitor it was saved on is gone or it hangs off the edge.
+pub fn ensure_on_screen(app: &AppHandle, w: &WebviewWindow) {
+    if w.is_maximized().unwrap_or(false) || w.is_fullscreen().unwrap_or(false) || w.is_minimized().unwrap_or(false) {
+        return;
+    }
+    let Some(cur) = outer_rect(w) else { return };
+    let fixed = crate::session::clamp_to_monitors(cur, &monitor_rects(app));
+    if fixed != cur {
+        let _ = w.set_size(tauri::PhysicalSize::new(fixed.w, fixed.h));
+        let _ = w.set_position(tauri::PhysicalPosition::new(fixed.x, fixed.y));
+    }
+}
+
+/// Bring a window to the front, restoring it from the taskbar if minimised.
+pub fn focus(w: &WebviewWindow) {
+    let _ = w.show();
+    if w.is_minimized().unwrap_or(false) {
+        let _ = w.unminimize();
+    }
+    let _ = w.set_focus();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snap_state_is_per_window() {
+        let m = SnapMap::new();
+        let st = |l: &str| SnapState { label: l.into(), ..Default::default() };
+        m.insert(1, st("main"));
+        m.insert(2, st("reader-1"));
+        m.with(1, |s| s.rect = [100, 0, 46, 32]);
+        m.with(2, |s| s.hover = true);
+        assert!(m.with(1, |s| s.hits(120, 10)).unwrap());
+        assert!(!m.with(2, |s| s.hits(120, 10)).unwrap(), "window 2 has no rect of its own");
+        assert!(!m.with(1, |s| s.hover).unwrap());
+        assert!(!m.with(1, |s| s.hits(146, 10)).unwrap(), "right edge is exclusive");
+        m.remove(1);
+        assert_eq!(m.len(), 1);
+        assert!(m.with(1, |s| s.hover).is_none());
+        assert_eq!(m.with(2, |s| s.label.clone()).unwrap(), "reader-1");
+    }
 }
