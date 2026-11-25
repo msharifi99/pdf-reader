@@ -11,3 +11,5 @@ playwright-report/
 .env*
 !.env.example
 dist-e2e-*/
+
+dist-perf/
