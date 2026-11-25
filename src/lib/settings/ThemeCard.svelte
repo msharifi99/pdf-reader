@@ -51,6 +51,8 @@
     overflow: hidden;
     background: var(--bg);
     box-shadow: 0 0 0 1px color-mix(in oklab, var(--text) 14%, transparent);
+    /* a theme preview is a picture of colours: keep them in Windows high contrast */
+    forced-color-adjust: none;
     transition: box-shadow var(--dur-fast) var(--ease-out), translate var(--dur-slow) var(--ease-out);
   }
   .tile:hover .mini { translate: 0 -2px; box-shadow: 0 0 0 1px color-mix(in oklab, var(--text) 22%, transparent), var(--shadow-2); }

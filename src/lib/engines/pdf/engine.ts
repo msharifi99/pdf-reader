@@ -966,7 +966,7 @@ export class PdfEngine implements Engine {
     // `null` is a remembered miss (quote not on its page or the two either side): never resolve it again, or each
     // redraw would start the lookup anew and loop forever
     if (hit === undefined) {
-      const p = this.resolveAnchor(d.anchor).then((r) => {
+      const p = this.resolveAnchor(d.anchor).catch(() => null).then((r) => {
         const res = r ? { page: r.page, quads: r.quads } : null;
         this.resolved.set(key, res);
         for (const pv of this.pageViews()) this.drawDecorations(pv);
@@ -1001,7 +1001,7 @@ export class PdfEngine implements Engine {
               el.style.mixBlendMode = blend;
               el.style.background = blend === 'multiply' ? color : `color-mix(in srgb, ${color} 55%, transparent)`;
               break;
-            case 'search-hit': el.style.background = `color-mix(in srgb, ${theme.highlight[0]} ${style.current ? 85 : 55}%, transparent)`; if (style.current) el.classList.add('q-d-current'); break;
+            case 'search-hit': el.style.background = `color-mix(in srgb, ${theme.accent} ${style.current ? 40 : 16}%, transparent)`; if (style.current) el.classList.add('q-d-current'); break;
             case 'speech-word': el.style.background = `color-mix(in srgb, ${theme.accent} 45%, transparent)`; break;
             case 'speech-sentence': el.style.background = `color-mix(in srgb, ${theme.accent} 16%, transparent)`; break;
             case 'bookmark': el.style.top = `${box.top}%`; break;

@@ -37,6 +37,7 @@
   import { core, isTauri } from '../core/core';
   import { commands, contextStack } from '../commands';
   import { Skeleton } from '../ui';
+  import { slide } from '../design/motion';
   import { ocr, setReadingActive, type OcrJob } from '../indexing';
   import type { EngineError } from '../engines/types';
   import { ReaderSession } from './session.svelte';
@@ -276,6 +277,9 @@
   class="reader"
   class:ready
   class:focus={tools.focus}
+  style:--left-w="{ui.sidebar && ready && handle ? ui.sidebarWidth : 0}px"
+  style:--right-w="{readerApi.panel ? (readerApi.panel.width ?? 340) : 0}px"
+  style:--panel-w="{readerApi.panel?.width ?? 340}px"
   data-testid="reader-view"
   data-book-id={bookId}
   data-status={session.status}
@@ -283,8 +287,8 @@
   aria-label="Reader: {handle?.metadata.title || book.title}"
   onpointermove={(e) => moveRuler(e.clientY)}
 >
-  <div class="body" style:--panel-w="{readerApi.panel?.width ?? 340}px">
-    <div class="stage-wrap" onwheel={onWheel}>
+  <div class="body">
+    <div class="stage-wrap" class:reflow={session.kind === 'reflow'} onwheel={onWheel}>
       <div class="stage" bind:this={stage} data-testid="reader-stage"></div>
       {#if slow && !ready}
         <div class="skeleton" aria-hidden="true">
@@ -303,7 +307,7 @@
       <Sidebar {session} {ui} {handle} />
     {/if}
     {#if readerApi.panel}
-      <aside class="panel" aria-label={readerApi.panel.title} data-testid="reader-panel">{@render readerApi.panel.body()}</aside>
+      <aside class="panel" aria-label={readerApi.panel.title} data-testid="reader-panel" transition:slide={{ side: 'right' }}>{@render readerApi.panel.body()}</aside>
     {/if}
   </div>
 
@@ -336,9 +340,17 @@
     position: absolute;
     inset: 0;
   }
+  /* Open sidebars and panels take their width from the page (it re-lays out, a spread drops to one
+     column when narrow) instead of covering it. */
   .stage-wrap {
     position: absolute;
-    inset: 0;
+    inset: 0 var(--right-w) 0 var(--left-w);
+  }
+  /* Reflowed text never sits under the chrome: the page starts below the title bar and ends above
+     the status bar, so nothing reflows when the chrome fades. */
+  .stage-wrap.reflow {
+    top: var(--titlebar-h);
+    bottom: var(--statusbar-h);
   }
   .stage {
     position: absolute;
@@ -373,7 +385,7 @@
   }
   .panel {
     position: absolute;
-    top: 40px;
+    top: var(--titlebar-h);
     right: 0;
     bottom: 0;
     width: var(--panel-w);

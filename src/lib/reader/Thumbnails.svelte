@@ -2,6 +2,8 @@
   // Page thumbnails (story 43): virtualised grid, rendered lazily by the engine, current page marked.
   import { onDestroy, tick } from 'svelte';
   import type { BookHandle } from '../engines/types';
+  import { INVERT_FILTER, parseCssColor, smartTintImageData } from '../engines/pdf/tint';
+  import { activeTheme } from '../shell/theme.svelte';
   import type { ReaderSession } from './session.svelte';
 
   interface Props {
@@ -37,6 +39,8 @@
   const cache = new Map<number, ImageBitmap | Blob>();
   const inflight = new Set<number>();
   let rev = $state(0);
+  // Thumbnails wear the same Page Tint as the pages, so a dark theme never shows a column of white sheets.
+  const tint = $derived({ mode: session.pageTint, bg: activeTheme().bg, fg: activeTheme().text });
   async function load(page: number) {
     if (cache.has(page) || inflight.has(page) || !session.engine?.thumbnail) return;
     inflight.add(page);
@@ -63,20 +67,27 @@
     for (const p of pages) void load(p);
   });
 
-  function draw(canvas: HTMLCanvasElement, arg: [page: number, rev: number]) {
-    let page = arg[0];
+  function draw(canvas: HTMLCanvasElement, arg: [page: number, rev: number, t: typeof tint]) {
+    let [page, , t] = arg;
     const paint = () => {
       const bm = cache.get(page);
-      if (!bm || !('width' in bm)) return;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!bm || !('width' in bm) || !ctx) return;
       canvas.width = bm.width;
       canvas.height = bm.height;
-      canvas.getContext('2d')?.drawImage(bm, 0, 0);
+      ctx.drawImage(bm, 0, 0);
+      if (t.mode === 'smart') {
+        const img = ctx.getImageData(0, 0, bm.width, bm.height);
+        smartTintImageData(img, parseCssColor(t.bg), parseCssColor(t.fg), []);
+        ctx.putImageData(img, 0, 0);
+      }
+      canvas.style.filter = t.mode === 'invert' ? INVERT_FILTER : '';
       canvas.dataset.ready = 'true';
     };
     paint();
     return {
-      update: (a: [number, number]) => {
-        page = a[0];
+      update: (a: [number, number, typeof tint]) => {
+        [page, , t] = a;
         paint();
       },
     };
@@ -166,7 +177,7 @@
         onfocus={() => (active = p)}
       >
         <div class="frame" style:height="{Math.round(thumbW * aspect)}px">
-          <canvas use:draw={[p, rev]}></canvas>
+          <canvas use:draw={[p, rev, tint]}></canvas>
         </div>
         <span class="num tabular">{label(p)}</span>
       </div>

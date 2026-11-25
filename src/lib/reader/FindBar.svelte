@@ -83,7 +83,7 @@
       {#each find.hits.slice(0, 500) as h, i (i)}
         <li role="option" aria-selected={i === find.index}>
           <button type="button" onclick={() => find.select(i)}>
-            <span class="ctx">…{h.excerpt.before.replace(/^…/, '').slice(-60).trimStart()}<mark>{h.excerpt.match}</mark>{h.excerpt.after.replace(/…$/, '').slice(0, 80).trimEnd()}…</span>
+            <span class="ctx">…{h.excerpt.before.replace(/^…/, '').slice(-40).trimStart()}<mark>{h.excerpt.match}</mark>{h.excerpt.after.replace(/…$/, '').slice(0, 80).trimEnd()}…</span>
             <span class="where tabular">{where(i)}</span>
           </button>
         </li>
@@ -151,11 +151,12 @@
     overflow: auto;
     border-top: 1px solid var(--border-soft);
   }
+  /* where (chapter or page) on a quiet caption line, the snippet below at full width */
   .results button {
     width: 100%;
     display: flex;
-    align-items: baseline;
-    gap: var(--space-3);
+    flex-direction: column;
+    gap: 2px;
     text-align: left;
     padding: var(--space-2) var(--space-2-5);
     border-radius: var(--radius-sm);
@@ -189,9 +190,12 @@
     padding: 0 1px;
   }
   .where {
-    flex: none;
+    order: -1;
     font-size: var(--text-xs);
     color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .more {
     padding: var(--space-2) var(--space-2-5);

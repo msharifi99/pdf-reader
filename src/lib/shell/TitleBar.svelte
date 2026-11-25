@@ -63,6 +63,7 @@
   class="titlebar"
   class:floating
   class:inactive={!win.focused}
+  class:fullscreen={win.fullscreen}
   data-chrome={floating ? 'top' : undefined}
   onmousedown={dragStart}
 >
@@ -80,7 +81,7 @@
       {#if parts.leading}{@render parts.leading()}{/if}
       <span class="book" title={parts.title ?? app.book?.title}>
         <span class="book-title">{parts.title ?? app.book?.title ?? ''}</span>
-        {#if parts.subtitle}<span class="sep" aria-hidden="true">·</span><span class="sub">{parts.subtitle}</span>{/if}
+        {#if parts.subtitle}<span class="sub">{parts.subtitle}</span>{/if}
       </span>
     {:else}
       <span class="mark" aria-hidden="true">
@@ -102,7 +103,7 @@
     <button class="palette-field" onclick={run('app.openPalette')} aria-label="Search or run a command" aria-keyshortcuts="Control+K">
       <Icon name="search" size={16} />
       <span class="ph">Search or run a command</span>
-      <Kbd keys={paletteKeys} />
+      <span class="k"><Kbd keys={paletteKeys} /></span>
     </button>
   </div>
 
@@ -147,7 +148,9 @@
     z-index: var(--z-chrome);
     flex: none;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(240px, 440px) minmax(0, 1fr);
+    /* The trailing tools never overflow: they keep their natural width, the palette field gives way
+       first (down to its icon), and the sides stay balanced while there is room. */
+    grid-template-columns: minmax(0, 1fr) minmax(36px, 440px) minmax(max-content, 1fr);
     align-items: center;
     gap: var(--space-4);
     height: var(--titlebar-h);
@@ -160,8 +163,10 @@
     transition: background-color var(--dur-slow) var(--ease-out), border-color var(--dur-slow) var(--ease-out);
   }
   .titlebar.floating {
+    grid-template-columns: minmax(180px, 1fr) minmax(36px, 440px) minmax(max-content, 1fr);
     position: absolute;
     inset: 0 0 auto 0;
+    background: var(--chrome-bg-over);
   }
   .lead {
     display: flex;
@@ -206,11 +211,18 @@
     font-size: var(--text-xs);
     white-space: nowrap;
   }
-  .book-title { color: var(--text); font-weight: var(--weight-medium); overflow: hidden; text-overflow: ellipsis; }
-  .sep, .sub { color: var(--muted); }
-  .sub { overflow: hidden; text-overflow: ellipsis; }
+  /* the book title keeps its room; the chapter gives way first */
+  .book-title { flex: 0 1 auto; min-width: 8ch; color: var(--text); font-weight: var(--weight-medium); overflow: hidden; text-overflow: ellipsis; }
+  /* the separator lives inside the chapter so it disappears with it on a narrow window */
+  .sub { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+  .sub::before { content: '·'; margin-right: var(--space-1-5); }
 
-  .center { display: flex; justify-content: center; min-width: 0; }
+  .center { display: flex; justify-content: center; min-width: 0; container-type: inline-size; }
+  @container (max-width: 220px) { .palette-field .k { display: none; } }
+  @container (max-width: 120px) {
+    .palette-field { justify-content: center; padding: 0; }
+    .palette-field .ph { display: none; }
+  }
   .palette-field {
     display: flex;
     align-items: center;
@@ -237,6 +249,8 @@
     height: 100%;
     min-width: 0;
   }
+  /* no caption buttons in fullscreen: keep the last tool off the screen edge */
+  .fullscreen .trail { padding-right: var(--space-2); }
   .caption { display: flex; height: 100%; margin-left: var(--space-2); }
   .cap {
     width: 46px;

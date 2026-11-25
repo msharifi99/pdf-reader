@@ -1,5 +1,6 @@
 <script lang="ts">
-  // Left sidebar over the page: Contents and (fixed layouts) Pages. Resizable; width remembered.
+  // Left sidebar beside the page (the page gives up its width): Contents and (fixed layouts) Pages.
+  // Resizable; width remembered.
   import { IconButton, Tabs } from '../ui';
   import { slide } from '../design/motion';
   import type { BookHandle } from '../engines/types';
@@ -72,18 +73,14 @@
 <style>
   .sidebar {
     position: absolute;
-    top: 40px;
+    top: var(--titlebar-h);
     left: 0;
-    bottom: 34px;
+    bottom: 0;
     z-index: var(--z-sidebar);
     display: flex;
     flex-direction: column;
     background: var(--surface);
-    border: 1px solid var(--border);
-    border-left: 0;
-    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
-    box-shadow: var(--shadow-3);
-    overflow: hidden;
+    border-right: 1px solid var(--border);
   }
   header {
     display: flex;
@@ -115,7 +112,7 @@
   .grip {
     position: absolute;
     top: 0;
-    right: -3px;
+    right: -4px;
     bottom: 0;
     width: 7px;
     cursor: col-resize;

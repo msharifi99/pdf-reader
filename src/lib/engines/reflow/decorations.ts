@@ -52,9 +52,9 @@ function bookmark(rects: R[], o: { color: string }): SVGElement {
 }
 
 /** Accent-coloured highlight that must not hide the text under it. */
-const softAccent = (rects: R[], o: { color: string; padding?: number }): SVGElement => {
+const softAccent = (rects: R[], o: { color: string; padding?: number; opacity?: number }): SVGElement => {
   const g = Overlayer.highlight(rects, o) as SVGElement;
-  g.style.opacity = '.4';
+  g.style.opacity = String(o.opacity ?? 0.4);
   return g;
 };
 
@@ -87,7 +87,7 @@ export function drawFor(style: DecorationStyle, theme: Theme): DrawSpec {
     case 'search-hit':
       return style.current
         ? { draw: softAccent, options: { color: theme.accent, padding: 1 } }
-        : { draw: Overlayer.outline, options: { color: theme.accent, width: 1.5, padding: 1, radius: 3 } };
+        : { draw: softAccent, options: { color: theme.accent, padding: 1, opacity: 0.16 } }; // a faint wash: every match visible, none shouting
     case 'speech-word':
       return { draw: speechMark, options: { color: theme.accent, fill: 0.26, underline: true } };
     case 'speech-sentence':

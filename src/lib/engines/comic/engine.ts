@@ -725,7 +725,7 @@ export class ComicEngine implements Engine {
           el.style.cssText = `left:${b.left}%;top:${b.top}%;width:${b.width}%;height:${b.height}%;--c:${color};`;
           switch (style.type) {
             case 'highlight': case 'note': el.style.background = `color-mix(in srgb, ${color} 42%, transparent)`; break;
-            case 'search-hit': el.style.background = `color-mix(in srgb, ${theme.highlight[0]} ${style.current ? 85 : 55}%, transparent)`; if (style.current) el.classList.add('q-d-current'); break;
+            case 'search-hit': el.style.background = `color-mix(in srgb, ${theme.accent} ${style.current ? 40 : 16}%, transparent)`; if (style.current) el.classList.add('q-d-current'); break;
             case 'speech-word': el.style.background = `color-mix(in srgb, ${theme.accent} 45%, transparent)`; break;
             case 'speech-sentence': el.style.background = `color-mix(in srgb, ${theme.accent} 16%, transparent)`; break;
           }

@@ -7,6 +7,7 @@
   import { IconButton, Tooltip } from '../ui';
   import { keyState } from '../commands';
   import { readerApi } from '../reader/slots.svelte';
+  import { overlays } from '../shell/overlays.svelte';
   import type { Annotator } from './controller.svelte';
   import { COLOR_LABEL, highlightColors } from './model';
   import { selectionActions } from './selection.svelte';
@@ -46,7 +47,8 @@
   }
 </script>
 
-{#if sel && pos && !ctl.popover}
+<!-- one floating thing at a time: the menu steps aside while the word lookup is open -->
+{#if sel && pos && !ctl.popover && !overlays.isOpen('lookup')}
   <div
     class="selmenu"
     role="toolbar"

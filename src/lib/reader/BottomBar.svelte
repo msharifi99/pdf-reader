@@ -63,8 +63,8 @@
 <style>
   .bar {
     position: absolute;
-    left: 0;
-    right: 0;
+    left: var(--left-w, 0);
+    right: var(--right-w, 0);
     bottom: 2px;
     height: 32px;
     padding: 0 var(--space-5);
@@ -75,8 +75,7 @@
     font-size: var(--text-xs);
     color: var(--muted);
     z-index: var(--z-chrome);
-    background: var(--chrome-bg);
-    backdrop-filter: blur(20px);
+    background: var(--chrome-bg-over);
   }
   .start,
   .end {
@@ -109,8 +108,8 @@
   }
   .line {
     position: absolute;
-    left: 0;
-    right: 0;
+    left: var(--left-w, 0);
+    right: var(--right-w, 0);
     bottom: 0;
     z-index: var(--z-chrome);
   }

@@ -369,7 +369,12 @@
   }
   .count { font-weight: var(--weight-medium); opacity: 0.8; }
   .bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); min-height: 28px; margin-bottom: var(--space-5); }
-  .chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1); }
+  .bar > .label { flex: none; white-space: nowrap; }
+  /* one calm row: on a narrow window the chips scroll sideways instead of wrapping under the heading
+     (the padding keeps focus rings unclipped) */
+  .chips { display: flex; gap: var(--space-1); min-width: 0; overflow-x: auto; scrollbar-width: none; padding: var(--space-1); margin: calc(var(--space-1) * -1); }
+  .chips > :global(*) { flex: none; }
+  .chips > :global(:first-child) { margin-left: auto; }
   .chip {
     display: inline-flex;
     align-items: center;

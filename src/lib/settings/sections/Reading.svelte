@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import { core } from '../../core/core';
   import { SegmentedControl, Slider, Switch } from '../../ui';
   import { settings, type ComicMode } from '../../stores/settings.svelte';
   import type { Flow } from '../../engines/types';
@@ -18,6 +20,11 @@
   ];
   // svelte-ignore state_referenced_locally (local slider value; written back on input)
   let delay = $state(s.chromeHideDelay / 1000);
+
+  // Window-session restore is a core setting (read at launch by the Rust side), default on.
+  let restore = $state(true);
+  onMount(() => void core.getSetting('restoreSession').then((v) => (restore = v !== false)).catch(() => {}));
+  const setRestore = (v: boolean) => void core.setSetting('restoreSession', v as never).catch(() => (restore = !v));
 </script>
 
 <SettingGroup title="Default layout">
@@ -49,6 +56,12 @@
         oninput={(v) => settings.set('chromeHideDelay', v * 1000)}
       />
     </div>
+  </SettingRow>
+</SettingGroup>
+
+<SettingGroup title="When Quire starts">
+  <SettingRow label="Restore windows on launch" description="Reopen the windows and books you had open last time." keywords="session restore reopen startup launch windows">
+    <Switch label="Restore windows on launch" hideLabel bind:checked={restore} onchange={setRestore} />
   </SettingRow>
 </SettingGroup>
 
