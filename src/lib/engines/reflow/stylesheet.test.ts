@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Theme, TypographyProfile } from '../types';
 import { fontFaceCss, FONT_FILES, stackFor } from './fontfaces';
-import { buildStyles, columnCount, layoutAttrs, SPREAD_MIN_WIDTH } from './stylesheet';
+import { stripGenericFontFamilies, buildStyles, columnCount, layoutAttrs, SPREAD_MIN_WIDTH } from './stylesheet';
 
 const light: Theme = {
   id: 'light', name: 'Light', dark: false, bg: '#faf7f0', surface: '#fff', text: '#1d1b17', muted: '#666', accent: '#a8651c',
@@ -14,7 +14,31 @@ const typo: TypographyProfile = {
 };
 const css = (t: Partial<TypographyProfile> = {}, theme = light) => buildStyles({ theme, typography: { ...typo, ...t } })[1];
 
+describe('stripGenericFontFamilies', () => {
+  it('drops generic-only font-family declarations and keeps real choices', () => {
+    const c = 'body { font-family: Georgia, serif; color: #222 } p.a{font-family:"Times New Roman",serif !important;margin:0} p.b { font-family: "Courier New", monospace } h1{font-family:"EmbeddedFace", sans-serif}';
+    const out = stripGenericFontFamilies(c);
+    expect(out).not.toMatch(/Georgia|Times/);
+    expect(out).toContain('color: #222');
+    expect(out).toContain('margin:0');
+    expect(out).toContain('"Courier New"');
+    expect(out).toContain('EmbeddedFace');
+  });
+});
+
 describe('buildStyles', () => {
+  it('text and link colours always follow the theme, even with override off', () => {
+    const c = css({ overridePublisher: 'off' });
+    expect(c).toMatch(/body \*:not\([^)]*\)\{color:inherit !important\}/);
+    expect(c).toContain('a:any-link{color:#2a5a9a !important}');
+  });
+
+  it('mono selector matches whole class words only (not "monologue", "decode", "barcode")', () => {
+    const c = css({ overridePublisher: 'fonts' });
+    expect(c).not.toMatch(/\[class\*=/);
+    expect(c).toContain('[class~="code" i]');
+  });
+
   it('puts @namespace and font faces before the book CSS, user rules after', () => {
     const [before, after] = buildStyles({ theme: light, typography: typo, fontCss: '@font-face{font-family:X}' });
     expect(before.startsWith('@namespace epub')).toBe(true);
@@ -27,7 +51,7 @@ describe('buildStyles', () => {
     expect(c).toContain('--theme-bg-color:#faf7f0');
     expect(c).toContain('html,body{background:#faf7f0 !important;color:#1d1b17 !important}');
     expect(c).toContain('::selection{background:#cfe0f5 !important}');
-    expect(c).toContain('a:any-link{color:#2a5a9a}');
+    expect(c).toContain('a:any-link{color:#2a5a9a !important}');
     expect(css({}, dark)).toContain('color-scheme:dark');
   });
 
@@ -35,7 +59,7 @@ describe('buildStyles', () => {
     const c = css();
     expect(c).toContain("font-family:'Literata Variable'");
     expect(c).not.toMatch(/font-family:'Literata Variable'[^;}]*!important/);
-    expect(c).not.toContain('body *:not(');
+    expect(c).not.toContain('background-color:transparent');
     expect(c).not.toContain('text-indent');
     expect(c).not.toContain('margin-bottom');
     // base font size is the root rem, always enforced
@@ -47,7 +71,7 @@ describe('buildStyles', () => {
     expect(c).toMatch(/body \*:not\([^)]*\)\{font-family:'Literata Variable'[^}]*!important\}/);
     expect(c).toContain('font-size:1em !important');
     expect(c).not.toContain('text-indent');
-    expect(c).not.toMatch(/color:inherit !important/); // light theme keeps publisher colours at 'fonts'
+    expect(c).not.toMatch(/background-color:transparent/); // backgrounds stay the publisher's at 'fonts' on light themes
   });
 
   it('all: also line-height, alignment, paragraph spacing/indent, colours — but protects poetry/quotes/code', () => {
@@ -66,7 +90,7 @@ describe('buildStyles', () => {
   });
 
   it('dark themes flatten colours at every level; dimming is opt-in', () => {
-    expect(css({}, dark)).toContain('color:inherit !important;background-color:transparent !important');
+    expect(css({}, dark)).toContain('background-color:transparent !important');
     expect(buildStyles({ theme: dark, typography: typo, dimImages: true })[1]).toContain('filter:brightness(.88)');
     expect(css({}, dark)).not.toContain('brightness');
     expect(buildStyles({ theme: light, typography: typo, dimImages: true })[1]).not.toContain('brightness');

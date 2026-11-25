@@ -62,7 +62,7 @@ const font = readFileSync(join(root, 'node_modules/@fontsource/atkinson-hyperleg
 const CSS = `@font-face { font-family: "EmbeddedFace"; src: url(../fonts/embedded.woff2) format("woff2"); }
 body { font-family: Georgia, serif; color: #222222; }
 h1 { font-family: "EmbeddedFace", sans-serif; font-size: 1.5em; text-align: center; margin: 1.5em 0 1em; }
-p.tx { font-family: "Courier New", monospace; color: #bb0000; line-height: 1.2; margin: 0; text-indent: 1.5em; text-align: left; font-size: 12pt; }
+p.tx { line-height: 1.4; margin: 0; text-indent: 1.5em; text-align: left; font-size: 12pt; }
 p.first { text-indent: 0; }
 blockquote.poem { margin: 1em 0 1em 2em; }
 blockquote.poem p { margin: 0; text-indent: -1em; padding-left: 1em; }
@@ -116,7 +116,12 @@ async function zip(entries) {
   return Buffer.from(await w.close());
 }
 
-async function epub3({ drm = false } = {}) {
+// publisher-styles.epub: the same book with deliberately hostile publisher CSS, to test the override switch
+const UGLY = `p.tx { font-family: "Courier New", monospace; color: #bb0000; }
+a { color: #00aa00; }
+`;
+
+async function epub3({ drm = false, ugly = false } = {}) {
   const c = chapters(true);
   const opf = `<?xml version="1.0" encoding="UTF-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid" xml:lang="en">
@@ -165,7 +170,7 @@ async function epub3({ drm = false } = {}) {
       : []),
     ['OEBPS/content.opf', opf],
     ['OEBPS/nav.xhtml', nav],
-    ['OEBPS/css/book.css', CSS],
+    ['OEBPS/css/book.css', ugly ? CSS + UGLY : CSS],
     ['OEBPS/cover.xhtml', c.coverPage],
     ['OEBPS/ch1.xhtml', ch1doc],
     ['OEBPS/ch2.xhtml', c.c2],
@@ -251,6 +256,7 @@ const write = (name, data) => {
 
 const good = await epub3();
 write('epub3.epub', good);
+write('publisher-styles.epub', await epub3({ ugly: true }));
 write('epub2.epub', await epub2());
 write('drm.epub', await epub3({ drm: true }));
 write('corrupt.epub', good.subarray(0, Math.floor(good.length * 0.6)));

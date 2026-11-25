@@ -10,7 +10,11 @@ export interface TextItemLike {
   width: number;
   height: number;
   hasEOL?: boolean;
+  fontName?: string;
 }
+
+/** Cumulative glyph-advance fractions for `str` (length + 1 entries, 0..1), measured in the item's font. */
+export type Measure = (str: string, fontName?: string) => number[] | null;
 
 export interface IndexedItem {
   start: number;
@@ -19,23 +23,45 @@ export interface IndexedItem {
   y: number;
   w: number;
   h: number;
+  /** Cumulative glyph-advance fractions per character (length + 1); absent: characters are equally wide. */
+  cum?: number[];
 }
 
 export interface PageText {
   text: string;
   items: IndexedItem[];
+  /** Text offsets where a new block starts (heading, paragraph): read-aloud chunks never span one. */
+  breaks?: number[];
 }
+
+/** x fraction of the way through an item at character index `i`. */
+const fracAt = (it: IndexedItem, i: number) => {
+  const len = it.end - it.start;
+  return it.cum ? it.cum[Math.min(Math.max(i, 0), len)] : i / len;
+};
+/** Character index (0..len) nearest to x fraction `f`. */
+const indexAtFrac = (it: IndexedItem, f: number) => {
+  const len = it.end - it.start;
+  if (!it.cum) return Math.round(f * len);
+  let best = 0;
+  for (let i = 1; i <= len; i++) if (Math.abs(it.cum[i] - f) < Math.abs(it.cum[best] - f)) best = i;
+  return best;
+};
 
 export type Quad = number[]; // [x, y, width, height] in page space
 
 const CTX = 32;
 
 /** `view` is the page's [x0, y0, x1, y1] in PDF user space. */
-export function buildPageText(raw: TextItemLike[], view: number[]): PageText {
+export function buildPageText(raw: TextItemLike[], view: number[], measure?: Measure): PageText {
   let text = '';
   const items: IndexedItem[] = [];
   let prevRight = NaN;
   let prevY = NaN;
+  let prevH = NaN;
+  const breaks: number[] = [];
+  /** Horizontal extent of each visual line, to tell short lines (heading, last line of a paragraph) from full ones. */
+  const lines: { start: number; x0: number; x1: number }[] = [];
   for (const it of raw) {
     const s = it.str.replace(/\s+/g, ' ');
     if (!s) {
@@ -48,18 +74,37 @@ export function buildPageText(raw: TextItemLike[], view: number[]): PageText {
     const x = e - view[0];
     const yTop = view[3] - (f + 0.85 * h);
     // Insert a space between items on the same line that are visibly apart.
+    const sameLine = !text || Math.abs(yTop - prevY) < Math.max(h, prevH) * 0.5;
     if (text && !text.endsWith(' ') && !s.startsWith(' ')) {
-      const sameLine = Math.abs(yTop - prevY) < h * 0.5;
       if (!sameLine || x - prevRight > h * 0.15) text += ' ';
     }
     const start = text.length;
+    if (text && !vertical) {
+      // a block starts where the type size changes a lot, or after a gap of more than a blank line
+      const sizeJump = Math.max(h, prevH) / Math.min(h, prevH) >= 1.25;
+      const gap = Math.abs(yTop - prevY) - Math.max(h, prevH) > Math.max(h, prevH) * 0.9;
+      if ((!sameLine || sizeJump) && (sizeJump || gap)) breaks.push(start);
+    }
+    if (!sameLine || !lines.length) lines.push({ start, x0: x, x1: x + it.width });
+    else lines[lines.length - 1].x1 = Math.max(lines[lines.length - 1].x1, x + it.width);
     text += s;
-    items.push(vertical ? { start, end: text.length, x: x - 0.85 * h, y: view[3] - f - it.width, w: h * 1.1, h: it.width } : { start, end: text.length, x, y: yTop, w: it.width, h: h * 1.1 });
+    const cum = measure && it.width > 0 ? (measure(s, it.fontName) ?? undefined) : undefined;
+    const ix: IndexedItem = vertical ? { start, end: text.length, x: x - 0.85 * h, y: view[3] - f - it.width, w: h * 1.1, h: it.width } : { start, end: text.length, x, y: yTop, w: it.width, h: h * 1.1 };
+    if (cum && cum.length === s.length + 1) ix.cum = cum;
+    items.push(ix);
     prevRight = x + it.width;
     prevY = yTop;
+    prevH = h;
     if (it.hasEOL && !text.endsWith(' ')) text += ' ';
   }
-  return { text, items };
+  // A short line followed by a capital starts a new paragraph (heading, signature, end of a paragraph).
+  const widest = Math.max(0, ...lines.map((l) => l.x1 - l.x0));
+  for (let i = 1; i < lines.length; i++) {
+    const ln = lines[i];
+    const prev = lines[i - 1];
+    if (prev.x1 - prev.x0 < widest * 0.6 && /\p{Lu}/u.test(text[ln.start] ?? '') && /[.!?:"')\]]\s*$|^\S+(\s\S+){0,5}\s*$/.test(text.slice(prev.start, ln.start))) breaks.push(ln.start);
+  }
+  return { text, items, breaks: [...new Set(breaks)].sort((a, b) => a - b) };
 }
 
 const isWordChar = (c: string | undefined) => !!c && /[\p{L}\p{N}_]/u.test(c);
@@ -90,9 +135,8 @@ export function quadsFor(pt: PageText, start: number, end: number): Quad[] {
   const quads: Quad[] = [];
   for (const it of pt.items) {
     if (it.end <= start || it.start >= end) continue;
-    const len = it.end - it.start;
-    const f0 = Math.max(0, (start - it.start) / len);
-    const f1 = Math.min(1, (end - it.start) / len);
+    const f0 = fracAt(it, Math.max(0, start - it.start));
+    const f1 = fracAt(it, Math.min(it.end - it.start, end - it.start));
     const q = [it.x + it.w * f0, it.y, it.w * (f1 - f0), it.h];
     const last = quads[quads.length - 1];
     if (last && Math.abs(last[1] - q[1]) < it.h * 0.4 && q[0] - (last[0] + last[2]) < it.h * 0.6 && q[0] >= last[0]) {
@@ -116,12 +160,11 @@ export function rangeForQuads(pt: PageText, quads: Quad[]): { start: number; end
       const cy = q[1] + q[3] / 2;
       if (cy < it.y - 1 || cy > it.y + it.h + 1) continue;
       if (q[0] + q[2] < it.x || q[0] > it.x + it.w) continue;
-      const len = it.end - it.start;
       const f0 = Math.max(0, (q[0] - it.x) / (it.w || 1));
       const f1 = Math.min(1, (q[0] + q[2] - it.x) / (it.w || 1));
       void cx;
-      start = Math.min(start, it.start + Math.round(f0 * len));
-      end = Math.max(end, it.start + Math.round(f1 * len));
+      start = Math.min(start, it.start + indexAtFrac(it, f0));
+      end = Math.max(end, it.start + indexAtFrac(it, f1));
     }
   }
   return end > start && start !== Infinity ? { start, end } : null;
@@ -228,5 +271,17 @@ export function splitSentences(text: string, max: number): { text: string; start
     if (/[.!?]["')\]]*\s*$/.test(cur) && cur.length > max / 2) flush();
   }
   flush();
+  return out;
+}
+
+/** `splitSentences` that never lets a chunk cross a block break (a heading, a paragraph start). */
+export function splitBlocks(text: string, max: number, breaks: number[] = []): { text: string; start: number }[] {
+  const out: { text: string; start: number }[] = [];
+  let from = 0;
+  for (const b of [...breaks, text.length]) {
+    if (b <= from) continue;
+    for (const p of splitSentences(text.slice(from, b), max)) out.push({ text: p.text, start: from + p.start });
+    from = b;
+  }
   return out;
 }

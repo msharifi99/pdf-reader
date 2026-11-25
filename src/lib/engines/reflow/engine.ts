@@ -47,7 +47,7 @@ import { drawFor } from './decorations';
 import { FONT_FILES, fontFaceCss, stackFor } from './fontfaces';
 import { noteElement, noteRefKind, referencedType, sanitizeNote } from './footnotes';
 import { loadBook, type LoadedBook } from './loader';
-import { buildStyles, layoutAttrs } from './stylesheet';
+import { buildStyles, stripGenericFontFamilies, layoutAttrs } from './stylesheet';
 import { buildTextMap, chunkSentences, findQuote, normaliseWs, rangeOfText, textOffsetOf, type TextMap } from './textmap';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -121,6 +121,8 @@ interface Resolved {
 export interface ReflowOptions {
   /** Animate page turns (still off under prefers-reduced-motion). Default true. */
   animatePageTurns: boolean;
+  /** Page-turn animation length in ms (vendored paginator). Default 180. */
+  pageTurnMs: number;
   /** Dim bitmaps slightly in dark themes. Default false. */
   dimImages: boolean;
 }
@@ -138,7 +140,7 @@ export class ReflowEngine implements Engine {
   private language: string | undefined;
 
   private pres: Presentation = DEFAULT_PRESENTATION;
-  private opts: ReflowOptions = { animatePageTurns: true, dimImages: false };
+  private opts: ReflowOptions = { animatePageTurns: true, pageTurnMs: 180, dimImages: false };
   private reducedMotion = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
 
   private target: HTMLElement | null = null;
@@ -183,6 +185,11 @@ export class ReflowEngine implements Engine {
     }
     this.loaded = loaded;
     this.book = loaded.book;
+    // EPUB only (other formats have no publisher CSS files): drop generic-only font-family declarations so the user's font shows
+    this.book.transformTarget?.addEventListener('data', ({ detail }: any) => {
+      if (detail.type !== 'text/css') return;
+      detail.data = Promise.resolve(detail.data).then((d: unknown) => (typeof d === 'string' ? stripGenericFontFamilies(d) : d));
+    });
     const sections: any[] = this.book.sections;
     this.sp = new SectionProgress(sections, 1500, 1600);
     const m = this.book.metadata ?? {};
@@ -539,6 +546,7 @@ export class ReflowEngine implements Engine {
         this.lastAttrs[k] = a[k];
       }
     }
+    r.setAttribute('animation-duration', String(this.opts.pageTurnMs));
     if (this.lastAttrs.animated !== a.animated) {
       r.toggleAttribute('animated', a.animated);
       this.lastAttrs.animated = a.animated;
@@ -619,16 +627,31 @@ export class ReflowEngine implements Engine {
 
   private async navigate(r: Resolved, reason?: RelocatedEvent['reason']): Promise<void> {
     const renderer = this.requireRenderer();
-    const seq = this.seq;
+    const nav = ++this.navId;
     if (reason) this.nextReason = reason;
     await renderer.goTo({ index: r.index, anchor: r.anchor });
-    if (seq === this.seq && !this.disposed) {
-      // The paginator silently drops navigation while a page turn is settling (100 ms lock).
+    // The paginator drops navigation while a page turn settles (100 ms lock), and fonts/images that load after the
+    // first pass change the page count, so anchor again until the layout holds still (at most 3 more passes).
+    let pages = renderer.pages;
+    for (let i = 0; i < 3 && nav === this.navId && !this.disposed && this.renderer === renderer; i++) {
       await new Promise((res) => setTimeout(res, 130));
-      if (seq === this.seq && this.renderer === renderer) await renderer.goTo({ index: r.index, anchor: r.anchor });
+      await this.imagesLoaded();
+      await this.contents()?.doc.fonts?.ready;
+      if (nav !== this.navId || this.renderer !== renderer) return;
+      await renderer.goTo({ index: r.index, anchor: r.anchor });
+      if (renderer.pages === pages) break;
+      pages = renderer.pages;
     }
   }
   private nextReason: RelocatedEvent['reason'] | null = null;
+  private navId = 0;
+
+  private imagesLoaded(): Promise<void> {
+    const imgs = Array.from(this.contents()?.doc.images ?? []).filter((i) => !i.complete);
+    if (!imgs.length) return Promise.resolve();
+    const all = Promise.all(imgs.map((i) => new Promise<void>((r) => (i.addEventListener('load', () => r(), { once: true }), i.addEventListener('error', () => r(), { once: true })))));
+    return Promise.race([all.then(() => new Promise<void>((r) => setTimeout(r, 60))), new Promise<void>((r) => setTimeout(r, 2000))]);
+  }
 
   async goTo(locator: Locator): Promise<void> {
     this.requireRenderer();
@@ -729,6 +752,11 @@ export class ReflowEngine implements Engine {
   // relocation
   // -------------------------------------------------------------------------------------------
 
+  /** Whole-book location (about 1500 bytes of source each): index = floor(fraction * count), 0-based. */
+  private locationAt(fraction: number, count: number): { index: number; count: number } {
+    return { index: Math.min(count - 1, Math.floor(fraction * count)), count };
+  }
+
   private onRelocate(foliateReason: string, force?: RelocatedEvent['reason']) {
     const loc = this.view?.lastLocation;
     if (!loc || !this.book) return;
@@ -764,7 +792,9 @@ export class ReflowEngine implements Engine {
     const progress: Progress = {
       fraction,
       chapter: idx >= 0 ? this.chapterInfo(idx, fraction) : undefined,
-      location: loc.location ? { index: loc.location.current, count: loc.location.total } : undefined,
+      // Derived from the same fraction the status bar shows (foliate's own index is from the page START
+      // while its fraction is the page END, so the two disagreed): 0-based, location n of count <=> fraction.
+      location: loc.location ? this.locationAt(fraction, loc.location.total) : undefined,
     };
     const ev: RelocatedEvent = { locator: { kind: 'reflow', cfi, fraction }, progress, reason };
     this.lastEvent = ev;

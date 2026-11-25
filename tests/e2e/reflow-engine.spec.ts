@@ -206,7 +206,7 @@ test.describe('EPUB 3', () => {
   });
 
   test('override publisher styles changes the font family (and levels differ)', async ({ page }) => {
-    await openBook(page, 'epub3.epub', 0);
+    await openBook(page, 'publisher-styles.epub', 0);
     const fam = () => sectionFrame(page).evaluate(() => getComputedStyle(document.querySelector('p.tx')!).fontFamily);
     const color = () => sectionFrame(page).evaluate(() => getComputedStyle(document.querySelector('p.tx')!).color);
     const setLevel = (level: string) =>
@@ -216,10 +216,10 @@ test.describe('EPUB 3', () => {
       }, level);
 
     expect(await fam()).toContain('Courier'); // publisher class rule wins at 'off'
-    expect(await color()).toBe('rgb(187, 0, 0)');
+    expect(await color()).toBe('rgb(29, 27, 23)'); // text colour is the theme's ink at every level (publisher #bb0000 ignored)
     await setLevel('fonts');
     expect(await fam()).toContain('Literata');
-    expect(await color()).toBe('rgb(187, 0, 0)'); // colours are not part of the 'fonts' level
+    expect(await color()).toBe('rgb(29, 27, 23)');
     await setLevel('all');
     expect(await fam()).toContain('Literata');
     expect(await color()).toBe('rgb(29, 27, 23)'); // theme ink

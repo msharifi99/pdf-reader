@@ -298,8 +298,8 @@ export class ReaderSession {
     }
     this.#lastFraction = f;
     // 'initial' is where we just restored to: never overwrite the saved place with it.
-    // Reflow re-anchoring after a layout change reports a coarser, element-level CFI that the
-    // engine restores to the chapter start, so those never replace the reader's real spot.
+    // Reflow 'presentation'/'resize' events are re-layout echoes (positions measured while fonts and images are still
+    // settling); the engine now reports text-level CFIs for them, but they still must not replace the reader's real spot.
     if (ev.reason === 'initial' || (this.kind === 'reflow' && (ev.reason === 'presentation' || ev.reason === 'resize'))) return;
     this.#saver.update(l, f);
   }

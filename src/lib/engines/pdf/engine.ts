@@ -354,7 +354,7 @@ export class PdfEngine implements Engine {
    * Recompute the whole layout and put the viewport back on `anchor` (a page position, or a point
    * under the cursor when zooming). Mounted rows are repositioned and resized in place.
    */
-  private relayout(anchor: { page: number; y: number }, reason: RelocatedEvent['reason'] = 'navigation', point?: { cx: number; cy: number }): void {
+  private relayout(anchor: { page: number; y: number; end?: boolean }, reason: RelocatedEvent['reason'] = 'navigation', point?: { cx: number; cy: number }): void {
     const root = this.root, inner = this.inner, doc = this.doc;
     if (!root || !inner || !doc) return;
     const old = this.layout;
@@ -382,7 +382,7 @@ export class PdfEngine implements Engine {
       root.scrollTop = L.tops[pointAnchor.row] + pointAnchor.frac * L.heights[pointAnchor.row] - point.cy;
       root.scrollLeft = pointAnchor.fx * inner.offsetWidth - point.cx;
     } else {
-      root.scrollTop = scrollTopFor(L, anchor.page, anchor.y);
+      root.scrollTop = anchor.end ? root.scrollHeight - root.clientHeight : scrollTopFor(L, anchor.page, anchor.y);
       if (!pointAnchor) root.scrollLeft = Math.max(0, centerFrac * inner.offsetWidth - root.clientWidth / 2);
     }
     if (this.zoom !== prevZoom) {
@@ -519,7 +519,7 @@ export class PdfEngine implements Engine {
       if (this.root) this.relayout(this.pendingTarget ?? this.captureAnchor(), 'resize');
     });
   }
-  private pendingTarget?: { page: number; y: number };
+  private pendingTarget?: { page: number; y: number; end?: boolean };
 
   private setVp1(pv: PageView): void {
     if (!pv.proxy) return;
@@ -768,8 +768,37 @@ export class PdfEngine implements Engine {
     this.pendingTarget = undefined;
   }
 
+  /**
+   * The viewport's top edge can never reach the bottom of the last page, so fraction 1 means "scrolled to the
+   * very end": pin the scroll to the maximum and re-pin while page sizes learned on the way change the layout.
+   */
+  private async goToEnd(): Promise<void> {
+    const doc = this.doc!;
+    const last = doc.pageCount - 1;
+    if (!this.root) {
+      this.pendingLocator = { kind: 'fixed', page: last, y: 1 };
+      return;
+    }
+    await doc.info(last);
+    this.pendingTarget = { page: last, y: 1, end: true };
+    const frame = () => new Promise<void>((res) => requestAnimationFrame(() => res()));
+    for (let i = 0; i < 6; i++) {
+      this.relayout(this.pendingTarget, 'navigation');
+      this.last = null;
+      this.emitRelocated('navigation');
+      const h = this.layout.tops[this.layout.tops.length - 1];
+      await Promise.all(this.pageViews().map((pv) => doc.info(pv.i)));
+      await frame();
+      await frame();
+      if (this.layout.tops[this.layout.tops.length - 1] === h && !this.relayoutTimer) break;
+    }
+    this.pendingTarget = undefined;
+    await this.awaitPage(last);
+  }
+
   async goToFraction(fraction: number): Promise<void> {
     const n = this.doc?.pageCount ?? 1;
+    if (fraction >= 1) return this.goToEnd();
     const f = clamp(fraction, 0, 1) * n;
     const page = Math.min(n - 1, Math.floor(f));
     await this.goTo({ kind: 'fixed', page, y: f - page });
@@ -812,10 +841,14 @@ export class PdfEngine implements Engine {
     const doc = this.doc!;
     const { page, y } = locationAt(this.layout, this.root!.scrollTop);
     const ch = doc.chapterAt(page, y);
+    const root = this.root!;
+    const max = root.scrollHeight - root.clientHeight;
+    // scrolled to the very end reads 100% (the top edge alone tops out below it); still monotonic
+    const atEnd = max > 1 && root.scrollTop >= max - 1;
     return {
       locator: { kind: 'fixed', page, y },
       progress: {
-        fraction: fractionOf(page, y, doc.pageCount),
+        fraction: atEnd ? 1 : fractionOf(page, y, doc.pageCount),
         chapter: ch ? { index: ch.index, title: ch.title } : undefined,
         page: { index: page, count: doc.pageCount, label: doc.labels?.[page] },
       },
@@ -903,6 +936,14 @@ export class PdfEngine implements Engine {
     if (window.getSelection()?.toString()) return;
     const t = this.target?.getBoundingClientRect();
     if (!t) return;
+    // a click on an annotation box is that annotation's, not a page-turn zone (deco layers ignore the pointer, so hit-test)
+    for (const el of this.root?.querySelectorAll<HTMLElement>('.q-d[data-layer="annotations"]') ?? []) {
+      const b = el.getBoundingClientRect();
+      if (e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom) {
+        this.emit('decorationclick', { layer: 'annotations', id: el.dataset.deco!, rect: { x: b.left - t.left, y: b.top - t.top, width: b.width, height: b.height } });
+        return;
+      }
+    }
     const x = e.clientX - t.left;
     this.emit('pointer', { x, y: e.clientY - t.top, zone: x < t.width / 3 ? 'left' : x > (t.width * 2) / 3 ? 'right' : 'center', button: e.button });
   }
@@ -921,7 +962,9 @@ export class PdfEngine implements Engine {
     const key = `${layer}|${d.id}`;
     const hit = this.resolved.get(key);
     if (hit && !(hit instanceof Promise)) return hit;
-    if (!hit) {
+    // `null` is a remembered miss (quote not on its page or the two either side): never resolve it again, or each
+    // redraw would start the lookup anew and loop forever
+    if (hit === undefined) {
       const p = this.resolveAnchor(d.anchor).then((r) => {
         const res = r ? { page: r.page, quads: r.quads } : null;
         this.resolved.set(key, res);
@@ -936,6 +979,7 @@ export class PdfEngine implements Engine {
   private drawDecorations(pv: PageView): void {
     if (pv.dead || !pv.vp1) return;
     const theme = this.pres.theme;
+    const blend = (theme as { highlightBlend?: string }).highlightBlend ?? (theme.dark ? 'screen' : 'multiply');
     const frag = document.createDocumentFragment();
     for (const layer of ['annotations', 'search', 'speech'] as DecorationLayer[]) {
       for (const d of this.decos[layer]) {
@@ -951,7 +995,11 @@ export class PdfEngine implements Engine {
           el.dataset.layer = layer;
           el.style.cssText = `left:${box.left}%;top:${box.top}%;width:${box.width}%;height:${box.height}%;--c:${color};`;
           switch (style.type) {
-            case 'highlight': case 'note': el.style.background = `color-mix(in srgb, ${color} 42%, transparent)`; break;
+            case 'highlight': case 'note':
+              // like marker pen: multiply on light themes (ink stays dark under it), screen at partial strength on dark ones
+              el.style.mixBlendMode = blend;
+              el.style.background = blend === 'multiply' ? color : `color-mix(in srgb, ${color} 55%, transparent)`;
+              break;
             case 'search-hit': el.style.background = `color-mix(in srgb, ${theme.highlight[0]} ${style.current ? 85 : 55}%, transparent)`; if (style.current) el.classList.add('q-d-current'); break;
             case 'speech-word': el.style.background = `color-mix(in srgb, ${theme.accent} 45%, transparent)`; break;
             case 'speech-sentence': el.style.background = `color-mix(in srgb, ${theme.accent} 16%, transparent)`; break;

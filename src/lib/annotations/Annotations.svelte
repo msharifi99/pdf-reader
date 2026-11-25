@@ -75,7 +75,7 @@
         if (d.layer === 'annotations') ctl.openPopover(d.id, ctl.toViewport(d.rect));
       }),
       e.on('pointer', (p) => {
-        if (p.button !== 0 || session.kind === 'reflow') return; // reflow reports decorationclick
+        if (p.button !== 0 || session.kind !== 'comic') return; // reflow and pdf report decorationclick
         void ctl.hitTest(p.x, p.y).then((h) => h && ctl.openPopover(h.id, ctl.toViewport(h.rect)));
       }),
     ];

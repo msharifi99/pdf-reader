@@ -2,6 +2,7 @@ import { rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { foliatePaginator } from './src/lib/engines/reflow/vendor/vite-plugin';
 
 // Release builds (`vite build --mode release`, run by `tauri build`; or QUIRE_NO_HARNESS=1) leave out the
 // dev harness pages, the e2e fixtures (public/fixtures) and sourcemaps. Plain `vite build` keeps them for Playwright.
@@ -10,6 +11,7 @@ const release = process.argv.includes('release') || !!process.env.QUIRE_NO_HARNE
 export default defineConfig({
   plugins: [
     svelte(),
+    foliatePaginator(),
     {
       name: 'quire-strip-fixtures',
       apply: 'build' as const,
@@ -19,6 +21,8 @@ export default defineConfig({
     },
   ],
   define: { __APP_VERSION__: JSON.stringify(process.env.npm_package_version ?? '0.0.0') },
+  // foliate-js stays unbundled in dev so the plugin above can swap its paginator
+  optimizeDeps: { exclude: ['foliate-js'] },
   clearScreen: false,
   server: { port: 1420, strictPort: true, watch: { ignored: ['**/src-tauri/**'] } },
   preview: { port: 4173, strictPort: true },

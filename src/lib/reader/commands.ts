@@ -101,8 +101,7 @@ export function registerReaderCommands(c: ReaderContext): () => void {
     defineCommand('reader.nextChapter', () => chapterStep(1), () => ready() && s.flat.length > 0),
     defineCommand('reader.prevChapter', () => chapterStep(-1), () => ready() && s.flat.length > 0),
     defineCommand('reader.goToStart', () => s.jump({ fraction: 0 }), nav),
-    // fixed: the last page's top; PDF goToFraction(1) (y=1 on an unmeasured page) can land several pages short
-    defineCommand('reader.goToEnd', () => s.jump(s.kind !== 'reflow' && s.handle?.pageCount ? { kind: 'fixed', page: s.handle.pageCount - 1, y: 0 } : { fraction: 1 }), nav),
+    defineCommand('reader.goToEnd', () => s.jump({ fraction: 1 }), nav),
     defineCommand('reader.goTo', () => openPalette({ prefix: '#' }), ready),
     defineCommand('reader.historyBack', () => s.back(), ready),
     defineCommand('reader.historyForward', () => s.forward(), ready),

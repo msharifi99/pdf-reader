@@ -91,7 +91,9 @@ test('the spoken word highlight follows boundary events (PDF), and the sentence 
   await fs(page, 'word()');
   await expect.poll(async () => JSON.stringify(await word.boundingBox())).not.toBe(JSON.stringify(b1));
   const b2 = await word.boundingBox();
-  await fs(page, 'word()'); // next line
+  await fs(page, 'end()'); // the heading ("Chapter 1") is its own chunk now: finish it, speech moves on to the next chunk
+  await expect.poll(() => fs<number>(page, 'spoken.length')).toBeGreaterThan(1);
+  await fs(page, 'word()');
   await expect.poll(async () => JSON.stringify(await word.boundingBox())).not.toBe(JSON.stringify(b2));
   await expect(page.locator('.q-d-speech-sentence').first()).toBeVisible();
   const scale = await page.locator('[data-testid=speech-player] .fill').evaluate((el) => getComputedStyle(el).scale);

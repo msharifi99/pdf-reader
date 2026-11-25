@@ -8,13 +8,17 @@
  *          layout (margins, columns) always applies.
  *   fonts  + family, size, weight, letter/word spacing become !important.
  *   all    + line-height, alignment, paragraph spacing/indent, colours and backgrounds.
- * Dark themes always flatten text colours and backgrounds: publishers tune them for white pages.
+ * Text and link colours always follow the theme; dark themes also flatten backgrounds (publishers tune them for white pages).
+ * Fonts: with override off the publisher's families win, except generic body fonts (Georgia, serif, Times...), which
+ * are stripped from the book's CSS (stripGenericFontFamilies) so the user's font shows wherever the publisher chose none.
  * Images, tables, code blocks, superscripts and poetry/indented blocks are never reset.
  */
 import type { Flow, PublisherOverride, Spread, Theme, TypographyProfile } from '../types';
 import { MONO_STACK, stackFor } from './fontfaces';
 
-const MONO_SEL = 'code, pre, kbd, samp, tt, var, [class*="mono" i], [class*="code" i]';
+// Class names match as whole words: a substring match caught prose classes such as "monologue", "decode"
+// or "barcode" and typeset those paragraphs in the mono face.
+const MONO_SEL = 'code, pre, kbd, samp, tt, var, [class~="mono" i], [class~="monospace" i], [class~="code" i], [class~="codeblock" i]';
 const TEXT_BLOCKS = 'p, li, dd, dt, td, th, blockquote, figcaption';
 const HEADINGS = 'h1, h2, h3, h4, h5, h6';
 /** Containers whose paragraphs keep the book's own indents/alignment (verse, quotes, notes). */
@@ -22,6 +26,15 @@ const KEEP_FORMATTING =
   ':is(blockquote, pre, figure, table, aside, [class*="poem" i], [class*="verse" i], [class*="stanza" i], [class*="epigraph" i], [class*="lyric" i])';
 const KEEP_OWN =
   ':not([align]):not([style*="text-align" i]):not([class*="center" i]):not([class*="right" i]):not([class*="epigraph" i])';
+
+/** `font-family` values made only of generic/default families say "no particular font": the user's font replaces them. */
+const GENERIC = /^(serif|sans-serif|georgia|times|times new roman|timesnewroman|palatino|palatino linotype|book antiqua|garamond|cambria|arial|helvetica|verdana|tahoma|trebuchet ms|system-ui|inherit|initial)$/i;
+export function stripGenericFontFamilies(css: string): string {
+  return css.replace(/(^|[{;\s])font-family\s*:\s*([^;}]*?)\s*(!important)?\s*(?=[;}]|$)/gi, (m, pre: string, value: string) => {
+    const fams = value.split(',').map((f) => f.trim().replace(/^['"]|['"]$/g, ''));
+    return fams.length && fams.every((f) => GENERIC.test(f)) ? pre : m;
+  });
+}
 
 export interface StyleInput {
   theme: Theme;
@@ -57,14 +70,14 @@ ${HEADINGS}{text-align:start}
   push(`:root{--theme-bg-color:${theme.bg};color-scheme:${theme.dark ? 'dark' : 'light'}}`);
   push(`html,body{background:${theme.bg} !important;color:${theme.text} !important}`);
   push(`::selection{background:${theme.selection} !important}`);
-  push(`a:any-link{color:${theme.link}${imp(all || theme.dark)}}`);
+  // Text and link colours always come from the theme: publisher colours are tuned for white paper and make books
+  // unreadable on dark, sepia and solarized pages. (Backgrounds are only flattened on dark themes, or at 'all'.)
+  push(`a:any-link{color:${theme.link} !important}`);
+  push(`body *:not(a:any-link, a:any-link *, img, svg, svg *, video, canvas, picture, hr, ${MONO_SEL}){color:inherit !important}`);
+  push(`pre, code, kbd, samp{color:inherit !important}`);
   if (theme.dark || all) {
-    push(
-      `body *:not(a:any-link, a:any-link *, img, svg, svg *, video, canvas, picture, hr, ${MONO_SEL}){color:inherit !important;background-color:transparent !important}`,
-    );
-    push(
-      `pre, code, kbd, samp{background-color:color-mix(in srgb, ${theme.text} 9%, transparent) !important;color:inherit !important}`,
-    );
+    push(`body *:not(a:any-link, a:any-link *, img, svg, svg *, video, canvas, picture, hr, ${MONO_SEL}){background-color:transparent !important}`);
+    push(`pre, code, kbd, samp{background-color:color-mix(in srgb, ${theme.text} 9%, transparent) !important}`);
     push(`hr{border-color:color-mix(in srgb, ${theme.text} 30%, transparent) !important}`);
   }
   if (theme.dark && dimImages) push('img, video{filter:brightness(.88)}');

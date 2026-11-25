@@ -56,3 +56,47 @@ describe('splitSentences', () => {
     expect(parts.map((p) => p.text).join('').replace(/\s+/g, ' ').trim().startsWith('One. Two!')).toBe(true);
   });
 });
+
+describe('block breaks and glyph-measured quads', () => {
+  const big = (str: string, y: number) => ({ str, transform: [24, 0, 0, 24, 72, y], width: 150, height: 24, hasEOL: true });
+  const body = (str: string, y: number, width = 460) => ({ str, transform: [12, 0, 0, 12, 72, y], width, height: 12, hasEOL: true });
+
+  it('a heading is its own chunk (size jump), also when the heading is body-sized but followed by a gap', async () => {
+    const { splitBlocks } = await import('./textindex');
+    const pt = buildPageText([big('Chapter 1', 700), body('The harbour pilot rose before dawn and walked down to the quay where the boats lay.', 660), body('Nobody else was awake yet.', 646, 150)], view);
+    const chunks = splitBlocks(pt.text, 400, pt.breaks).map((c) => c.text.trim());
+    expect(chunks[0]).toBe('Chapter 1');
+    expect(chunks[1]).toMatch(/^The harbour pilot/);
+
+    const pt2 = buildPageText([body('Part one', 700, 60), body('It began quietly.', 650)], view); // vertical gap, same size
+    expect(splitBlocks(pt2.text, 400, pt2.breaks).map((c) => c.text.trim())).toEqual(['Part one', 'It began quietly.']);
+  });
+
+  it('a short line followed by a capital starts a new block; a wrapped paragraph does not', async () => {
+    const { splitBlocks } = await import('./textindex');
+    const pt = buildPageText(
+      [body('A full line of text that runs across the entire measure of the column,', 700), body('and wraps onto the next line which is also long enough to count as full', 686), body('End.', 672, 30), body('Next paragraph begins here and goes on.', 658)],
+      view,
+    );
+    const chunks = splitBlocks(pt.text, 400, pt.breaks).map((c) => c.text.trim());
+    expect(chunks.some((c) => c.startsWith('Next paragraph'))).toBe(true);
+    expect(chunks[0]).toContain('and wraps onto');
+  });
+
+  it('quads use per-glyph advances when measured: "reached" starts at the r, not one letter late', () => {
+    // 'i' and 'l' are narrow, 'm' and 'w' wide: equal-width spreading would shift the box by about a letter
+    const str = 'illiill reached';
+    const w: Record<string, number> = { i: 0.25, l: 0.25, ' ': 0.3, r: 0.35, e: 0.55, a: 0.55, c: 0.5, h: 0.55, d: 0.55 };
+    const cum = [0];
+    for (const ch of str) cum.push(cum[cum.length - 1] + w[ch]);
+    const total = cum[cum.length - 1];
+    const measured = buildPageText([{ str, transform: [12, 0, 0, 12, 100, 700], width: 100, height: 12 }], view, () => cum.map((v) => v / total));
+    const plain = buildPageText([{ str, transform: [12, 0, 0, 12, 100, 700], width: 100, height: 12 }], view);
+    const start = str.indexOf('reached');
+    const wantX = 100 + (100 * cum[start]) / total;
+    expect(quadsFor(measured, start, str.length)[0][0]).toBeCloseTo(wantX, 5);
+    expect(Math.abs(quadsFor(plain, start, str.length)[0][0] - wantX)).toBeGreaterThan(5); // the old uniform spreading was off
+    const back = rangeForQuads(measured, quadsFor(measured, start, str.length))!;
+    expect(measured.text.slice(back.start, back.end)).toBe('reached');
+  });
+});

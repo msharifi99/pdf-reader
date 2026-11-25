@@ -4,7 +4,7 @@ import type { Anchor, BookHandle, BookMetadata, BookSource, Locator, OcrWord, Op
 import { ByteLru } from './lru';
 import { PDF_TO_CSS, chapterIndex, type Size } from './layout';
 import { dataUrl, setupPdfjs } from './setup';
-import { buildPageText, findAll, makeQuote, normalizeQuery, quadsFor, splitSentences, type PageText } from './textindex';
+import { buildPageText, findAll, makeQuote, normalizeQuery, quadsFor, splitBlocks, type Measure, type PageText } from './textindex';
 
 export interface PageInfo extends Size {
   /** Intrinsic /Rotate of the page. */
@@ -320,7 +320,31 @@ export class PdfDoc {
     const pg = await this.proxy(page);
     const content = await pg.getTextContent({ includeMarkedContent: false, disableNormalization: false });
     const raw = content.items.filter((i): i is typeof i & { str: string } => 'str' in i);
-    return { ...buildPageText(raw as never, info.view), ...space };
+    return { ...buildPageText(raw as never, info.view, this.measure(content.styles)), ...space };
+  }
+
+  private measureCtx: CanvasRenderingContext2D | null | undefined;
+  private glyphW = new Map<string, number>();
+  /** Per-character advances measured with the page font's CSS family (pdf.js text items only give the item's total width). */
+  private measure(styles: Record<string, { fontFamily?: string }> | undefined): Measure {
+    return (str, fontName) => {
+      this.measureCtx ??= typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d');
+      const ctx = this.measureCtx;
+      const fam = (fontName && styles?.[fontName]?.fontFamily) || 'sans-serif';
+      if (!ctx) return null;
+      ctx.font = `100px ${fam}`;
+      const cum = [0];
+      let sum = 0;
+      for (const ch of str) {
+        const key = `${fam}|${ch}`;
+        let w = this.glyphW.get(key);
+        if (w === undefined) this.glyphW.set(key, (w = ctx.measureText(ch).width));
+        sum += w;
+        for (let k = 1; k < ch.length; k++) cum.push(sum); // surrogate pairs count as two string indices
+        cum.push(sum);
+      }
+      return sum > 0 ? cum.map((v) => v / sum) : null;
+    };
   }
 
   setOcrWords(page: number, words: OcrWord[]): void {
@@ -375,7 +399,7 @@ export class PdfDoc {
       if (options.signal?.aborted || this.destroyed) return;
       const pt = await this.pageText(page).catch(() => null);
       if (!pt || !pt.text.trim()) continue;
-      for (const part of splitSentences(pt.text, max)) {
+      for (const part of splitBlocks(pt.text, max, pt.breaks)) {
         const s = part.start;
         const e = part.start + part.text.length;
         const q0 = quadsFor(pt, s, s + 1)[0];
