@@ -69,14 +69,8 @@
       background: var(--flyout-bg);
       color: var(--text);
       box-shadow: var(--shadow-3);
-      opacity: 0;
-      transition: opacity var(--dur-base) var(--ease-out), display var(--dur-base) allow-discrete,
-        overlay var(--dur-base) allow-discrete;
     }
-    ::picker(select):popover-open { opacity: 1; }
-    @starting-style {
-      ::picker(select):popover-open { opacity: 0; }
-    }
+    /* No open fade: lightningcss (vite build) can't parse ::picker(select):popover-open. */
     option {
       display: flex;
       align-items: center;
