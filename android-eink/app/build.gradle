@@ -1,0 +1,33 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'app.quire.eink'
+    compileSdk 35
+    buildToolsVersion '35.0.0'
+    defaultConfig {
+        applicationId 'app.quire.eink'
+        minSdk 17
+        targetSdk 17   // Android 4.2 device; avoids runtime-permission/compat shims
+        versionCode 1
+        versionName '0.1.0'
+        ndk { abiFilters 'armeabi-v7a' }
+    }
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.debug   // private app: debug-signed release is fine
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    lint { abortOnError false; checkReleaseBuilds false }
+    packaging { jniLibs { useLegacyPackaging true } }  // extract .so to disk; mmap from compressed apk is slow on API 17
+}
+
+dependencies {
+    implementation files('libs/mupdf-fitz-1.27.1.jar')   // Java half of MuPDF 1.27.1; native half built from source (tools/build-mupdf.sh)
+}

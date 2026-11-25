@@ -1,0 +1,62 @@
+/* Quire e-ink mockup tokens. Every value here is a DESIGN.md token; px are device px on the 758x1024, 212 dpi panel. */
+@font-face { font-family: Literata; src: url(../../../app/src/main/assets/fonts/Literata-Regular.ttf); font-weight: 400; }
+@font-face { font-family: Literata; src: url(../../../app/src/main/assets/fonts/Literata-Italic.ttf); font-weight: 400; font-style: italic; }
+@font-face { font-family: Literata; src: url(../../../app/src/main/assets/fonts/Literata-SemiBold.ttf); font-weight: 600; }
+@font-face { font-family: Literata; src: url(../../../app/src/main/assets/fonts/Literata-Bold.ttf); font-weight: 700; }
+@font-face { font-family: Inter; src: url(../../../app/src/main/assets/fonts/Inter-Regular.ttf); font-weight: 400; }
+@font-face { font-family: Inter; src: url(../../../app/src/main/assets/fonts/Inter-Medium.ttf); font-weight: 500; }
+@font-face { font-family: Atkinson; src: url(../../../app/src/main/assets/fonts/AtkinsonHyperlegibleNext-Regular.ttf); }
+
+:root {
+  --ink: #000000;     /* text, icons, primary fills, strong rules */
+  --ink-2: #555555;   /* secondary text >= 16px, 1px dividers */
+  --gray: #aaaaaa;    /* decorative only: tracks, disabled, dashed placeholders */
+  --tint: #cccccc;    /* highlight fill, cover placeholder */
+  --paper: #ffffff;
+
+  --t-badge: 15px; --t-micro: 16px; --t-meta: 18px; --t-body: 21px; --t-lead: 24px; --t-title: 28px; --t-display: 36px;
+  --gutter: 32px; --bar: 96px; --row: 72px; --icon-btn: 68px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #777; font-family: Inter, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+.screen { width: 758px; height: 1024px; background: var(--paper); position: relative; overflow: hidden; margin: 0 0 20px; }
+.abs { position: absolute; }
+.muted { color: var(--ink-2); }
+.tab { font-variant-numeric: tabular-nums; }
+.caps { font-size: var(--t-badge); font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+.serif { font-family: Literata, serif; }
+.ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+svg.i { width: 32px; height: 32px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.ib { width: var(--icon-btn); height: var(--icon-btn); display: flex; align-items: center; justify-content: center; }
+.ib.on { background: var(--ink); color: var(--paper); border-radius: 8px; }
+
+/* bars */
+.topbar { position: absolute; left: 0; right: 0; top: 0; height: var(--bar); background: var(--paper); display: flex; align-items: center; padding: 0 14px; border-bottom: 1px solid var(--ink); }
+.topbar.plain { border-bottom: 0; }
+.pager { position: absolute; left: 0; right: 0; bottom: 0; height: 60px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; font-size: var(--t-meta); color: var(--ink-2); }
+
+/* buttons */
+.btn { height: 56px; padding: 0 24px; border-radius: 6px; border: 2px solid var(--ink); background: var(--paper); font: 500 var(--t-body)/1 Inter; display: inline-flex; align-items: center; gap: 10px; }
+.btn.primary { background: var(--ink); color: var(--paper); }
+.chip { height: 44px; padding: 0 18px; border-radius: 22px; border: 1px solid var(--ink-2); font-size: var(--t-meta); display: inline-flex; align-items: center; gap: 8px; }
+.chip.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.seg { display: flex; height: 56px; border: 2px solid var(--ink); border-radius: 8px; overflow: hidden; }
+.seg > div { flex: 1; display: flex; align-items: center; justify-content: center; font: 500 var(--t-meta) Inter; border-left: 1px solid var(--ink); }
+.seg > div:first-child { border-left: 0; }
+.seg > div.on { background: var(--ink); color: var(--paper); }
+.switch { width: 64px; height: 36px; border: 2px solid var(--ink); border-radius: 18px; position: relative; }
+.switch::after { content: ''; position: absolute; top: 4px; left: 4px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--ink); background: var(--paper); box-sizing: border-box; }
+.switch.on { background: var(--ink); }
+.switch.on::after { left: 30px; border-color: var(--paper); }
+.progress { height: 4px; background: var(--gray); position: relative; }
+.progress > i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink); }
+
+/* book page */
+.page { position: absolute; left: 53px; right: 53px; top: 56px; font: 400 28px/1.5 Literata, serif; hyphens: auto; }
+.page p { text-indent: 0; margin: 0 0 14px; }
+.page h2 { font: 600 34px/1.3 Literata; margin: 40px 0 28px; }
+.footer { position: absolute; left: 53px; right: 53px; bottom: 20px; display: flex; justify-content: space-between; font-size: var(--t-micro); color: var(--ink-2); }
+
+/* covers (simulated dithered cover art) */
+.cover { width: 144px; height: 208px; position: relative; overflow: hidden; border-radius: 4px; outline: 1px solid var(--ink); outline-offset: -1px; }
+.badge { position: absolute; left: 8px; top: 8px; background: var(--paper); border: 1px solid var(--ink); font: 500 13px/1 Inter; letter-spacing: .06em; padding: 4px 6px; border-radius: 3px; }

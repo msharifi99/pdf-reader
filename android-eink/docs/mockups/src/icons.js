@@ -1,0 +1,46 @@
+// Quire e-ink icon set: 24-unit grid, 1.9-unit round stroke (= 2.5 px at the 32 px render size).
+// Source of truth for the PNGs in docs/icon/ui/. Fluent-like, matching the desktop's line icons.
+window.ICONS = {
+  back: '<path d="M20 12H4M10 6l-6 6 6 6"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  more: '<circle cx="12" cy="5" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="19" r="1.3" fill="currentColor"/>',
+  search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L20 20"/>',
+  settings: '<circle cx="12" cy="12" r="7.6" stroke-width="3.4" stroke-dasharray="2.99 2.98" stroke-linecap="butt"/><circle cx="12" cy="12" r="5.8"/><circle cx="12" cy="12" r="2.2"/>',
+  contents: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1" fill="currentColor"/><circle cx="4.5" cy="12" r="1" fill="currentColor"/><circle cx="4.5" cy="18" r="1" fill="currentColor"/>',
+  bookmark: '<path d="M7 3.5h10v17l-5-4-5 4z"/>',
+  bookmarkOn: '<path d="M7 3.5h10v17l-5-4-5 4z" fill="currentColor"/>',
+  type: '<path d="M2.5 19L8 5l5.5 14M4.6 14h6.8"/><circle cx="18" cy="16" r="2.8"/><path d="M20.8 12.5V19"/>',
+  grid: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.2"/>',
+  list: '<path d="M10 6h10M10 12h10M10 18h10"/><rect x="3.5" y="4.5" width="3" height="3" rx=".6"/><rect x="3.5" y="10.5" width="3" height="3" rx=".6"/><rect x="3.5" y="16.5" width="3" height="3" rx=".6"/>',
+  sort: '<path d="M7 4v16M4 17l3 3 3-3M17 20V4M14 7l3-3 3 3"/>',
+  filter: '<path d="M4 6h16M7 12h10M10 18h4"/>',
+  chevLeft: '<path d="M15 5l-7 7 7 7"/>',
+  chevRight: '<path d="M9 5l7 7-7 7"/>',
+  chevDown: '<path d="M5 9l7 7 7-7"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  minus: '<path d="M5 12h14"/>',
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  goto: '<path d="M6 3h9l4 4v14H6zM15 3v4h4M9 14h6M12.5 11.5L15 14l-2.5 2.5"/>',
+  highlight: '<path d="M4 20.5h16M14.5 4l5 5-8 8H6.5v-5z"/>',
+  note: '<path d="M4.5 4h15v12h-7l-4 4v-4h-4z"/><path d="M8 8.5h8M8 12h5"/>',
+  copy: '<rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2"/><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
+  export: '<path d="M12 15V3M7 8l5-5 5 5M5 13v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6"/>',
+  collection: '<path d="M4 8l8-4 8 4-8 4zM4 12l8 4 8-4M4 16l8 4 8-4"/>',
+  prevChapter: '<path d="M6 5v14M18 5l-9 7 9 7z"/>',
+  nextChapter: '<path d="M18 5v14M6 5l9 7-9 7z"/>',
+  refresh: '<path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/>',
+  fit: '<path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/>',
+  contrast: '<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/>',
+  crop: '<path d="M6 2v16h16M2 6h16v16"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.5" r=".6" fill="currentColor"/>',
+  edit: '<path d="M4 20l1-4L16 5l3 3L8 19z"/>',
+  book: '<path d="M5 17V6a2 2 0 0 1 2-2h12v13H7a2 2 0 0 0 0 4h12"/>',
+  rotate: '<path d="M4 12a8 8 0 0 1 13.7-5.6M20 4v5h-5"/><rect x="8" y="11" width="8" height="9" rx="1"/>',
+  battery: '<rect x="2.5" y="7.5" width="17" height="9" rx="1.8"/><path d="M22 10.5v3"/><rect x="4.6" y="9.6" width="10.5" height="4.8" fill="currentColor" stroke="none"/>',
+};
+window.icon = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24">${window.ICONS[name]}</svg>`;
+document.addEventListener('DOMContentLoaded', () => {
+  for (const el of document.querySelectorAll('[data-i]')) el.innerHTML = window.icon(el.dataset.i);
+});
