@@ -1,6 +1,6 @@
 //! Commands whose payload is raw bytes. tauri-specta can only type JSON arguments (a `Vec<u8>`
 //! becomes a number array), so these bypass it: the body is the bytes, small metadata travels in
-//! `x-*` headers. TypeScript wrappers live in `src/lib/core/core.ts` (`raw.ocrPage`, `raw.saveCover`).
+//! `x-*` headers. TypeScript wrappers live in `src/lib/core/core.ts` (`raw.ocrPage`, `raw.saveCover`); `save_book_file` is called from `src/lib/reader/session.svelte.ts`.
 
 use std::sync::Arc;
 
@@ -46,11 +46,18 @@ pub async fn save_cover_raw(core: State<'_, Arc<Core>>, request: Request<'_>) ->
     super::commands::store_cover(&core, &id, bytes)
 }
 
+/// Body = the whole PDF, form values filled in. Header: `x-book-id`. Replaces the book's file on disk.
+#[tauri::command]
+pub async fn save_book_file(core: State<'_, Arc<Core>>, request: Request<'_>) -> Res<Book> {
+    let id = header(&request, "x-book-id").ok_or_else(|| Error::invalid("Missing x-book-id."))?.to_string();
+    core.db.rewrite_book_file(&id, body(&request)?)
+}
+
 /// The invoke handler: raw commands here, everything else through the specta-generated one.
 pub fn handler<R: Runtime>(typed: impl Fn(Invoke<R>) -> bool + Send + Sync + 'static) -> impl Fn(Invoke<R>) -> bool + Send + Sync + 'static {
-    let raw: Box<dyn Fn(Invoke<R>) -> bool + Send + Sync> = Box::new(tauri::generate_handler![ocr_page, save_cover_raw]);
+    let raw: Box<dyn Fn(Invoke<R>) -> bool + Send + Sync> = Box::new(tauri::generate_handler![ocr_page, save_cover_raw, save_book_file]);
     move |inv| match inv.message.command() {
-        "ocr_page" | "save_cover_raw" => raw(inv),
+        "ocr_page" | "save_cover_raw" | "save_book_file" => raw(inv),
         _ => typed(inv),
     }
 }

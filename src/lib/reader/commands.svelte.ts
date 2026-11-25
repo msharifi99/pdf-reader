@@ -118,6 +118,8 @@ export function registerReaderCommands(c: ReaderContext): () => void {
     defineCommand('reader.fitPage', () => fitTo('page'), fixedZoom),
     defineCommand('reader.actualSize', () => fitTo('actual'), fixedZoom),
     defineCommand('reader.rotate', () => s.setBookSetting({ rotation: (((s.bookSettings.rotation ?? 0) + 90) % 360) as 0 | 90 | 180 | 270 }), () => ready() && s.kind === 'pdf'),
+    defineCommand('reader.saveForm', () => void s.saveForm('file'), () => ready() && !!s.engine?.saveForm),
+    defineCommand('reader.saveFormCopy', () => void s.saveForm('copy'), () => ready() && !!s.engine?.saveForm),
     defineCommand('reader.textBigger', () => textSize(1), () => ready() && !!caps()?.typography),
     defineCommand('reader.textSmaller', () => textSize(-1), () => ready() && !!caps()?.typography),
     defineCommand('reader.textReset', () => textSize(null), () => ready() && !!caps()?.typography),

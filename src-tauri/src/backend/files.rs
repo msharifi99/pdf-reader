@@ -90,6 +90,19 @@ pub fn fingerprint(path: &Path) -> Res<String> {
     Ok(h.finalize().to_hex().to_string())
 }
 
+/// `fingerprint` of a file whose bytes are already in memory.
+pub fn fingerprint_bytes(b: &[u8]) -> String {
+    let len = b.len() as u64;
+    let mut h = blake3::Hasher::new();
+    h.update(&len.to_le_bytes());
+    let head = MIB.min(len) as usize;
+    h.update(&b[..head]);
+    if len > MIB {
+        h.update(&b[b.len() - MIB.min(len - MIB) as usize..]);
+    }
+    h.finalize().to_hex().to_string()
+}
+
 /// Folder of images: hash of the sorted (name, size) list.
 pub fn folder_fingerprint(images: &[PathBuf]) -> Res<(String, u64)> {
     let mut h = blake3::Hasher::new();
@@ -451,6 +464,46 @@ impl Db {
         }
         let book = self.get_book(&id)?;
         Ok(Some(Registered { book, created, start_image }))
+    }
+
+    /// Replace a library PDF's file with `bytes` (form values saved into it), keeping the book's identity: the
+    /// fingerprint moves to the new content first, so re-ingest (watcher, next open) finds the same book.
+    /// Written to a temp file beside it, then renamed over, so a failed write never leaves a half file.
+    pub fn rewrite_book_file(&self, id: &str, bytes: &[u8]) -> Res<Book> {
+        let book = self.get_book(id)?;
+        if book.format != Format::Pdf {
+            return Err(Error::new(ErrorCode::Unsupported, "Only PDF files can be saved."));
+        }
+        if !bytes.starts_with(b"%PDF-") {
+            return Err(Error::invalid("That isn't a PDF."));
+        }
+        let path = match (&book.path, book.available) {
+            (Some(p), true) => PathBuf::from(p),
+            _ => return Err(Error::new(ErrorCode::NotFound, "The book's file is no longer there.")),
+        };
+        let (old_fp, old_size) = (book.fingerprint.clone(), book.file_size);
+        let fp = fingerprint_bytes(bytes);
+        let set = |fp: &str, size: f64| {
+            self.tx(|t| Ok(t.execute("UPDATE books SET fingerprint=?2, file_size=?3 WHERE id=?1", params![id, fp, size])?))
+        };
+        set(&fp, bytes.len() as f64).map_err(|e| match e.code {
+            ErrorCode::Db => Error::new(ErrorCode::Invalid, "Another book in the library already has exactly this content."),
+            _ => e,
+        })?;
+        let tmp = path.with_file_name(format!(".{}.quire-save", path.file_name().unwrap_or_default().to_string_lossy()));
+        let written = (|| -> std::io::Result<()> {
+            let mut f = File::create(&tmp)?;
+            std::io::Write::write_all(&mut f, bytes)?;
+            f.sync_all()?;
+            drop(f);
+            std::fs::rename(&tmp, &path)
+        })();
+        if let Err(e) = written {
+            let _ = std::fs::remove_file(&tmp);
+            let _ = set(&old_fp, old_size);
+            return Err(e.into());
+        }
+        self.get_book(id)
     }
 
     /// Stat every known path and fix `available`. Returns ids of books whose availability changed.

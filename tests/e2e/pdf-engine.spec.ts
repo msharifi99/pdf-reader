@@ -222,6 +222,39 @@ test('form JavaScript runs like Acrobat: calculations, manual overrides, Mouse U
   }
 });
 
+test('filled-in form values save into the PDF and reopen intact; only user edits count as unsaved', async ({ page }) => {
+  await open(page, 'form.pdf', { fit: 'actual' });
+  await waitRendered(page, 0);
+  const f = (n: string) => page.locator(`.annotationLayer [name="${n}"]`);
+  const modified = () => page.evaluate(() => (window as any).__h.engine.formModified());
+  await expect(f('level')).toHaveValue(''); // sandbox ready (fields rendered); its own writes don't count as edits
+  expect(await modified()).toBe(false);
+  await f('a').click();
+  await f('a').fill('10');
+  await f('a').press('Tab');
+  await f('p').click();
+  await expect(f('level')).toHaveValue('1');
+  expect(await modified()).toBe(true);
+
+  const bytes: number[] = await page.evaluate(async () => {
+    let out: number[] = [];
+    await (window as any).__h.engine.saveForm(async (b: Uint8Array) => { out = Array.from(b); });
+    return out;
+  });
+  expect(await modified()).toBe(false);
+  expect(new TextDecoder().decode(new Uint8Array(bytes.slice(0, 5)))).toBe('%PDF-');
+
+  await page.route('**/fixtures/pdf/saved.pdf', (r) => r.fulfill({ status: 200, contentType: 'application/pdf', body: Buffer.from(bytes) }));
+  await open(page, 'saved.pdf', { fit: 'actual' });
+  await waitRendered(page, 0);
+  await expect(f('a')).toHaveValue('10');
+  await expect(f('total')).toHaveValue('13');
+  await expect(f('level')).toHaveValue('1');
+  await expect(f('p')).toBeChecked();
+  await expect(f('e')).not.toBeChecked();
+  expect(await modified()).toBe(false);
+});
+
 test('selection becomes an anchor that resolves back to rects, and survives zoom', async ({ page }) => {
   await open(page, 'text.pdf', { fit: 'actual' });
   await waitRendered(page, 0);

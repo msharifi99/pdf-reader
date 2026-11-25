@@ -75,6 +75,7 @@ export const DEFAULT_BINDINGS: readonly DefaultBinding[] = [
   { context: 'reader.fixed', keys: ['Ctrl+Plus', 'Ctrl+='], command: 'reader.zoomIn' },
   { context: 'reader.fixed', keys: 'Ctrl+-', command: 'reader.zoomOut' },
   { context: 'reader.fixed', keys: 'Ctrl+0', command: 'reader.zoomReset' },
+  { context: 'reader.fixed', keys: 'Ctrl+S', command: 'reader.saveForm', allowInInput: true },
   { context: 'reader.fixed', keys: 'Ctrl+1', command: 'reader.fitWidth' },
   { context: 'reader.fixed', keys: 'Ctrl+2', command: 'reader.fitPage' },
   { context: 'reader.fixed', keys: 'Ctrl+3', command: 'reader.actualSize' },

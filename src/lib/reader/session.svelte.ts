@@ -2,7 +2,7 @@
  * One open book in the reader: engine, handle, position, per-book presentation, history, progress.
  * Created by ReaderView per mount; `readerApi.session` exposes the live one to T11/T13 (see slots.svelte.ts).
  */
-import { core, fileUrl, raw } from '../core/core';
+import { core, fileUrl, isTauri, raw } from '../core/core';
 import { onFlush } from '../core/flush';
 import { perfMark, perfMarkAfterPaint } from '../core/perf';
 import { engineKindFor, sniffSource } from '../engines/sniff';
@@ -38,6 +38,8 @@ type Extras = Engine & {
   turnToward?(side: 'left' | 'right'): Promise<boolean>;
   setExternalLinkHandler?(fn: ((href: string) => void) | undefined): void;
   setOptions?(o: { animatePageTurns?: boolean; dimImages?: boolean }): void;
+  formModified?(): boolean;
+  saveForm?(write: (bytes: Uint8Array) => Promise<unknown>): Promise<void>;
 };
 
 export async function createEngine(kind: EngineKind): Promise<Engine> {
@@ -87,6 +89,7 @@ export class ReaderSession {
     this.book = book;
     this.kind = engineKindFor(book.format);
     this.#offs.push(onFlush(() => this.flush())); // the window is closing: write the position now
+    this.#offs.push(onFlush(() => this.#autosaveForm())); // ...and form values typed into a PDF
   }
 
   get disposed(): boolean {
@@ -360,6 +363,62 @@ export class ReaderSession {
     return this.engine?.selectionToAnchor() ?? Promise.resolve(null);
   }
 
+  // ---- forms -----------------------------------------------------------------------------
+
+  /** Form values were typed into this PDF and not saved yet. */
+  get formModified(): boolean {
+    return !!this.engine?.formModified?.();
+  }
+
+  /** Library books save into their own file; anything else (and the browser build) as a copy. */
+  get canSaveFormInPlace(): boolean {
+    return isTauri() && isLibraryId(this.book.id);
+  }
+
+  /** Write the filled-in form into the book's file (`'file'`) or a copy the user picks (`'copy'`). */
+  async saveForm(to: 'file' | 'copy' = 'file', quietly = false): Promise<boolean> {
+    const engine = this.engine;
+    if (!engine?.saveForm) return false;
+    const inPlace = to === 'file' && this.canSaveFormInPlace;
+    const name = `${(this.book.path ? baseName(this.book.path) : this.book.title).replace(/\.pdf$/i, '')}${inPlace ? '' : ' (filled)'}.pdf`;
+    const { toast } = await import('../ui/toast.svelte');
+    try {
+      let path: string | null = null;
+      if (!inPlace && isTauri()) {
+        const d = await import('@tauri-apps/plugin-dialog');
+        const dir = this.book.path?.replace(/[^\\/]*$/, '') ?? '';
+        path = await d.save({ title: 'Save a copy of the form', defaultPath: dir + name, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+        if (!path) return false;
+      }
+      await engine.saveForm(async (bytes) => {
+        if (inPlace) {
+          // raw body (see src-tauri/src/backend/raw.rs); updates the library fingerprint so the book keeps its identity
+          const { invoke } = await import('@tauri-apps/api/core');
+          await invoke('save_book_file', bytes, { headers: { 'x-book-id': this.book.id } });
+        } else if (path) {
+          await (await import('@tauri-apps/plugin-fs')).writeFile(path, bytes);
+        } else {
+          const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/pdf' }));
+          Object.assign(document.createElement('a'), { href: url, download: name }).click();
+          setTimeout(() => URL.revokeObjectURL(url), 10_000);
+        }
+      });
+      if (!quietly) toast(inPlace ? 'Form saved' : 'Copy saved', { duration: 2500 });
+      return true;
+    } catch (err) {
+      console.warn('[reader] saving the form failed', err);
+      const why = (err as { message?: string } | null)?.message;
+      toast(`Couldn’t save the form.${why ? ` ${why}` : ''}`, { kind: 'warning' });
+      return false;
+    }
+  }
+
+  /** Closing (window or book) with unsaved form values: keep them, in place only (no dialogs at close). */
+  #autosaveForm(): Promise<unknown> | undefined {
+    if (!this.formModified || !this.canSaveFormInPlace) return undefined;
+    return this.saveForm('file', true);
+  }
+
   // ---- close -----------------------------------------------------------------------------
 
   /** Write the pending position now (blur, hide, close). */
@@ -385,11 +444,17 @@ export class ReaderSession {
     }
     this.#offs.forEach((f) => f());
     this.#selectionSubs.clear();
-    try {
-      this.engine?.dispose();
-    } catch (e) {
-      console.warn('[reader] engine dispose failed', e);
-    }
+    const engine = this.engine;
+    const free = () => {
+      try {
+        engine?.dispose();
+      } catch (e) {
+        console.warn('[reader] engine dispose failed', e);
+      }
+    };
+    const saving = this.#autosaveForm(); // the engine must stay alive until the PDF is written
+    if (saving) void saving.finally(free);
+    else free();
     this.engine = null;
   }
 }

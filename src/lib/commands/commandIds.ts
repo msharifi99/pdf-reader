@@ -51,6 +51,8 @@ export const COMMAND_TABLE: readonly CommandMeta[] = [
   m('reader.fitPage', 'Fit page', 'View', RF),
   m('reader.actualSize', 'Actual size', 'View', RF, { keywords: ['100%'] }),
   m('reader.rotate', 'Rotate page', 'View', RF),
+  m('reader.saveForm', 'Save form', 'App', RF, { keywords: ['fill', 'fields', 'pdf'] }),
+  m('reader.saveFormCopy', 'Save a copy of the form…', 'App', RF, { keywords: ['fill', 'fields', 'pdf', 'save as', 'export'] }),
   m('reader.textBigger', 'Increase text size', 'View', RR, { repeatable: true, keywords: ['font', 'larger'] }),
   m('reader.textSmaller', 'Decrease text size', 'View', RR, { repeatable: true, keywords: ['font', 'smaller'] }),
   m('reader.textReset', 'Reset text size', 'View', RR, { keywords: ['font'] }),

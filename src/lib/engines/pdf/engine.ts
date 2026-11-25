@@ -133,6 +133,9 @@ export class PdfEngine implements Engine {
   private formJs?: { hasJS: Promise<boolean>; fields: Promise<unknown> };
   /** Widgets with a "Mouse Up" script, and a calculation-order field to trigger recalculation through. */
   private mouseUp?: { ids: Set<string>; calc?: string };
+  /** Form edits the user made, and how many of them the last save covered. */
+  private formEdits = 0;
+  private formSavedEdits = 0;
   private rotateBusy = false;
 
   // location
@@ -231,6 +234,7 @@ export class PdfEngine implements Engine {
     const fields = doc.pdf.getFieldObjects();
     this.formJs = { hasJS: doc.pdf.hasJSActions(), fields };
     this.mouseUp = undefined;
+    this.formEdits = this.formSavedEdits = 0;
     void Promise.all([fields, doc.pdf.getCalculationOrderIds()]).then(([f, order]) => {
       const ids = new Set<string>();
       for (const list of (f as Map<string, { id: string; actions?: Map<string, unknown> | null }[]> | null)?.values() ?? [])
@@ -301,6 +305,10 @@ export class PdfEngine implements Engine {
     // Keystroke, which doesn't recalculate), run Mouse Up, then recalculate via a calculated field's Action.
     const scripted = (t: EventTarget | null): t is HTMLInputElement =>
       t instanceof HTMLInputElement && (t.type === 'checkbox' || t.type === 'radio') && !!this.mouseUp?.ids.has(t.getAttribute('data-element-id') ?? '');
+    // only the user's own edits count (form scripts also write values, e.g. when the sandbox starts)
+    const edited = (e: Event) => { if (e.isTrusted && (e.target as Element | null)?.closest?.('.annotationLayer')) this.formEdits++; };
+    root.addEventListener('input', edited, { capture: true, signal });
+    root.addEventListener('change', edited, { capture: true, signal });
     root.addEventListener('mouseup', (e) => { if (e.isTrusted && scripted(e.target)) e.stopPropagation(); }, { capture: true, signal });
     root.addEventListener('change', (e) => {
       const t = e.target;
@@ -1261,6 +1269,27 @@ export class PdfEngine implements Engine {
       frag.append(s);
     }
     pv.ocr.append(frag);
+  }
+
+  // ---- forms ---------------------------------------------------------------------------------
+
+  /** The user changed a form field since open or the last save. */
+  formModified(): boolean {
+    return this.formEdits !== this.formSavedEdits;
+  }
+
+  /**
+   * The PDF with the form's current values written in, handed to `write`; the form counts as saved once `write`
+   * resolves (edits made meanwhile still count as unsaved).
+   */
+  async saveForm(write: (bytes: Uint8Array) => Promise<unknown>): Promise<void> {
+    const doc = this.doc;
+    if (!doc) throw new EngineError('unknown', 'open() must be called before saveForm()');
+    const edits = this.formEdits;
+    await this.scripting?.dispatchWillSave().catch(() => {});
+    await write(await doc.pdf.saveDocument());
+    this.formSavedEdits = edits;
+    void this.scripting?.dispatchDidSave()?.catch(() => {});
   }
 
   // ---- teardown ------------------------------------------------------------------------------

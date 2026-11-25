@@ -480,3 +480,35 @@ fn writes_are_durable_wal_with_full_sync() {
     db.checkpoint(); // shutdown folds the WAL into the file
     assert_eq!(db.get_all_settings().unwrap().len(), 1);
 }
+
+#[test]
+fn fingerprint_bytes_matches_the_file_fingerprint() {
+    let t = tempfile::tempdir().unwrap();
+    for len in [10usize, 1 << 20, (1 << 20) + 300_000, 3 << 20] {
+        let bytes: Vec<u8> = (0..len).map(|i| (i * 31 % 251) as u8).collect();
+        let p = t.path().join(format!("f{len}"));
+        fs::write(&p, &bytes).unwrap();
+        assert_eq!(quire_lib::backend::files::fingerprint(&p).unwrap(), quire_lib::backend::files::fingerprint_bytes(&bytes), "len {len}");
+    }
+}
+
+#[test]
+fn saving_a_pdf_in_place_keeps_the_book_and_its_progress() {
+    let (t, db) = new_db();
+    let p = pdf(t.path(), "sheet.pdf", "blank form");
+    let b = open(&db, &p);
+    db.save_progress(&b.id, &json!({ "kind": "fixed", "page": 2 }), 0.5).unwrap();
+    let filled = b"%PDF-1.4\nfilled form, a bit longer\n%%EOF".to_vec();
+    let saved = db.rewrite_book_file(&b.id, &filled).unwrap();
+    assert_eq!(fs::read(&p).unwrap(), filled);
+    assert_eq!(saved.file_size as usize, filled.len());
+    assert_ne!(saved.fingerprint, b.fingerprint);
+    // the next open (or the watcher) finds the same book, progress intact; no temp file left behind
+    let again = open(&db, &p);
+    assert_eq!(again.id, b.id);
+    assert_eq!(db.get_progress(&b.id).unwrap().unwrap().fraction, 0.5);
+    assert_eq!(fs::read_dir(t.path()).unwrap().filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().contains("quire-save")).count(), 0);
+    // refuses non-PDF bytes and leaves the file alone
+    assert!(db.rewrite_book_file(&b.id, b"not a pdf").is_err());
+    assert_eq!(fs::read(&p).unwrap(), filled);
+}
