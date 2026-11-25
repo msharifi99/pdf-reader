@@ -1,0 +1,570 @@
+[
+ {
+  "name": "pdf/text.pdf",
+  "title": "On Margins and Measure",
+  "author": "Quire Press",
+  "status": "reading",
+  "progress": 0.3,
+  "openedMinutesAgo": 4320,
+  "addedDaysAgo": 2,
+  "collections": [
+   "Reference"
+  ],
+  "pageCount": 3
+ },
+ {
+  "name": "pdf/big.pdf",
+  "title": "The Annual Record",
+  "author": "Department of Records",
+  "addedDaysAgo": 4
+ },
+ {
+  "name": "reflow/epub3.epub",
+  "title": "Two Openings",
+  "author": "Austen & Melville",
+  "status": "reading",
+  "progress": 0.18,
+  "openedMinutesAgo": 11520,
+  "addedDaysAgo": 6,
+  "collections": [
+   "Fiction"
+  ]
+ },
+ {
+  "name": "reflow/epub2.epub",
+  "title": "A Legacy Edition",
+  "author": "Quire Press",
+  "addedDaysAgo": 7
+ },
+ {
+  "name": "reflow/fb2.fb2",
+  "title": "The FictionBook Sampler",
+  "author": "Quire Press",
+  "status": "finished",
+  "progress": 1,
+  "openedMinutesAgo": 36000,
+  "addedDaysAgo": 26
+ },
+ {
+  "name": "reflow/mobi.mobi",
+  "title": "Kindle Keepsake",
+  "author": "Quire Press",
+  "addedDaysAgo": 10
+ },
+ {
+  "name": "reflow/azw3.azw3",
+  "title": "Small Hours",
+  "author": "Quire Press",
+  "addedDaysAgo": 11
+ },
+ {
+  "name": "comic/comic.cbz",
+  "title": "Panels at Dusk",
+  "author": "Quire Comics",
+  "status": "reading",
+  "progress": 0.3,
+  "openedMinutesAgo": 14400,
+  "addedDaysAgo": 12,
+  "collections": [
+   "Comics"
+  ]
+ },
+ {
+  "name": "comic/manga-rtl.cbz",
+  "title": "Right to Left",
+  "author": "Quire Manga",
+  "addedDaysAgo": 13,
+  "collections": [
+   "Comics"
+  ]
+ },
+ {
+  "name": "comic/comic.cbr",
+  "title": "Archive Issue Two",
+  "author": "Quire Comics",
+  "addedDaysAgo": 14,
+  "collections": [
+   "Comics"
+  ]
+ },
+ {
+  "name": "samples/the-left-hand-of-darkness.epub",
+  "file": "reflow/epub3.epub",
+  "title": "The Left Hand of Darkness",
+  "author": "Ursula K. Le Guin",
+  "format": "epub",
+  "status": "reading",
+  "addedDaysAgo": 30,
+  "collections": [
+   "Fiction",
+   "Favourites"
+  ],
+  "wordCount": 96000,
+  "progress": 0.42,
+  "openedMinutesAgo": 40,
+  "cover": "/fixtures/covers/the-left-hand-of-darkness.jpg"
+ },
+ {
+  "name": "samples/saga-volume-one.cbz",
+  "file": "comic/comic.cbz",
+  "title": "Saga, Volume One",
+  "author": "Brian K. Vaughan & Fiona Staples",
+  "format": "cbz",
+  "status": "reading",
+  "addedDaysAgo": 12,
+  "collections": [
+   "Comics"
+  ],
+  "pageCount": 160,
+  "progress": 0.66,
+  "openedMinutesAgo": 180,
+  "cover": "/fixtures/covers/saga-volume-one.jpg"
+ },
+ {
+  "name": "samples/meditations.epub",
+  "file": "reflow/epub3.epub",
+  "title": "Meditations",
+  "author": "Marcus Aurelius",
+  "format": "epub",
+  "status": "reading",
+  "addedDaysAgo": 90,
+  "collections": [
+   "Non-fiction",
+   "Favourites"
+  ],
+  "wordCount": 62000,
+  "progress": 0.51,
+  "openedMinutesAgo": 1640,
+  "cover": "/fixtures/covers/meditations.jpg"
+ },
+ {
+  "name": "samples/thinking-fast-and-slow.pdf",
+  "file": "pdf/text.pdf",
+  "title": "Thinking, Fast and Slow",
+  "author": "Daniel Kahneman",
+  "format": "pdf",
+  "status": "reading",
+  "addedDaysAgo": 60,
+  "collections": [
+   "Non-fiction"
+  ],
+  "pageCount": 499,
+  "progress": 0.08,
+  "openedMinutesAgo": 2880,
+  "needsCover": false
+ },
+ {
+  "name": "samples/middlemarch.epub",
+  "file": "reflow/epub3.epub",
+  "title": "Middlemarch",
+  "author": "George Eliot",
+  "format": "epub",
+  "status": "finished",
+  "addedDaysAgo": 200,
+  "collections": [
+   "Fiction",
+   "Classics"
+  ],
+  "progress": 1,
+  "openedMinutesAgo": 28800,
+  "cover": "/fixtures/covers/middlemarch.jpg"
+ },
+ {
+  "name": "samples/a-pattern-language.pdf",
+  "file": "pdf/text.pdf",
+  "title": "A Pattern Language",
+  "author": "Christopher Alexander",
+  "format": "pdf",
+  "status": "reading",
+  "addedDaysAgo": 120,
+  "collections": [
+   "Non-fiction",
+   "Reference"
+  ],
+  "pageCount": 1171,
+  "progress": 0.21,
+  "openedMinutesAgo": 8640,
+  "needsCover": false
+ },
+ {
+  "name": "samples/moby-dick.epub",
+  "file": "reflow/epub3.epub",
+  "title": "Moby-Dick",
+  "author": "Herman Melville",
+  "format": "epub",
+  "status": "reading",
+  "addedDaysAgo": 45,
+  "collections": [
+   "Classics"
+  ],
+  "wordCount": 206000,
+  "progress": 0.12,
+  "openedMinutesAgo": 12960,
+  "cover": "/fixtures/covers/moby-dick.jpg"
+ },
+ {
+  "name": "samples/pride-and-prejudice.epub",
+  "file": "reflow/epub3.epub",
+  "title": "Pride and Prejudice",
+  "author": "Jane Austen",
+  "format": "epub",
+  "status": "finished",
+  "addedDaysAgo": 300,
+  "collections": [
+   "Classics",
+   "Fiction"
+  ],
+  "progress": 1,
+  "openedMinutesAgo": 57600,
+  "cover": "/fixtures/covers/pride-and-prejudice.jpg"
+ },
+ {
+  "name": "samples/the-odyssey.epub",
+  "file": "reflow/epub3.epub",
+  "title": "The Odyssey",
+  "author": "Homer, tr. Emily Wilson",
+  "format": "epub",
+  "status": "unread",
+  "addedDaysAgo": 3,
+  "collections": [
+   "Classics"
+  ],
+  "needsCover": false
+ },
+ {
+  "name": "samples/the-name-of-the-rose.mobi",
+  "file": "reflow/mobi.mobi",
+  "title": "The Name of the Rose",
+  "author": "Umberto Eco",
+  "format": "mobi",
+  "status": "unread",
+  "addedDaysAgo": 18,
+  "collections": [
+   "Fiction"
+  ],
+  "needsCover": false
+ },
+ {
+  "name": "samples/invisible-cities.azw3",
+  "file": "reflow/azw3.azw3",
+  "title": "Invisible Cities",
+  "author": "Italo Calvino",
+  "format": "azw3",
+  "status": "finished",
+  "addedDaysAgo": 160,
+  "collections": [
+   "Fiction",
+   "Favourites"
+  ],
+  "progress": 1,
+  "openedMinutesAgo": 21600,
+  "cover": "/fixtures/covers/invisible-cities.jpg"
+ },
+ {
+  "name": "samples/the-elements-of-typographic-style.pdf",
+  "file": "pdf/text.pdf",
+  "title": "The Elements of Typographic Style",
+  "author": "Robert Bringhurst",
+  "format": "pdf",
+  "status": "reading",
+  "addedDaysAgo": 240,
+  "collections": [
+   "Reference",
+   "Favourites"
+  ],
+  "pageCount": 398,
+  "progress": 0.74,
+  "openedMinutesAgo": 5760,
+  "cover": "/fixtures/covers/the-elements-of-typographic-style.jpg"
+ },
+ {
+  "name": "samples/godel-escher-bach.pdf",
+  "file": "pdf/text.pdf",
+  "title": "Gödel, Escher, Bach",
+  "author": "Douglas Hofstadter",
+  "format": "pdf",
+  "status": "unread",
+  "addedDaysAgo": 75,
+  "collections": [
+   "Non-fiction"
+  ],
+  "needsCover": false
+ },
+ {
+  "name": "samples/structure-and-interpretation-of-computer-programs.pdf",
+  "file": "pdf/text.pdf",
+  "title": "Structure and Interpretation of Computer Programs",
+  "author": "Abelson & Sussman",
+  "format": "pdf",
+  "status": "reading",
+  "addedDaysAgo": 210,
+  "collections": [
+   "Reference"
+  ],
+  "pageCount": 657,
+  "progress": 0.35,
+  "openedMinutesAgo": 15840,
+  "needsCover": false
+ },
+ {
+  "name": "samples/the-remains-of-the-day.epub",
+  "file": "reflow/epub3.epub",
+  "title": "The Remains of the Day",
+  "author": "Kazuo Ishiguro",
+  "format": "epub",
+  "status": "unread",
+  "addedDaysAgo": 8,
+  "collections": [
+   "Fiction"
+  ],
+  "cover": "/fixtures/covers/the-remains-of-the-day.jpg"
+ },
+ {
+  "name": "samples/dune.epub",
+  "file": "reflow/epub3.epub",
+  "title": "Dune",
+  "author": "Frank Herbert",
+  "format": "epub",
+  "status": "finished",
+  "addedDaysAgo": 400,
+  "collections": [
+   "Fiction"
+  ],
+  "progress": 1,
+  "openedMinutesAgo": 86400,
+  "cover": "/fixtures/covers/dune.jpg"
+ },
+ {
+  "name": "samples/akira-vol-1.cbr",
+  "file": "comic/comic.cbr",
+  "title": "Akira, Vol. 1",
+  "author": "Katsuhiro Otomo",
+  "format": "cbr",
+  "status": "reading",
+  "addedDaysAgo": 50,
+  "collections": [
+   "Comics"
+  ],
+  "pageCount": 362,
+  "progress": 0.9,
+  "openedMinutesAgo": 10080,
+  "cover": "/fixtures/covers/akira-vol-1.jpg"
+ },
+ {
+  "name": "samples/persepolis.cbz",
+  "file": "comic/comic.cbz",
+  "title": "Persepolis",
+  "author": "Marjane Satrapi",
+  "format": "cbz",
+  "status": "unread",
+  "addedDaysAgo": 22,
+  "collections": [
+   "Comics"
+  ],
+  "needsCover": false
+ },
+ {
+  "name": "samples/maus.cbz",
+  "file": "comic/comic.cbz",
+  "title": "Maus",
+  "author": "Art Spiegelman",
+  "format": "cbz",
+  "status": "finished",
+  "addedDaysAgo": 380,
+  "collections": [
+   "Comics"
+  ],
+  "progress": 1,
+  "openedMinutesAgo": 129600,
+  "needsCover": false
+ },
+ {
+  "name": "samples/war-and-peace.fb2",
+  "file": "reflow/fb2.fb2",
+  "title": "War and Peace",
+  "author": "Leo Tolstoy",
+  "format": "fb2",
+  "status": "reading",
+  "addedDaysAgo": 100,
+  "collections": [
+   "Classics"
+  ],
+  "wordCount": 587000,
+  "progress": 0.03,
+  "openedMinutesAgo": 43200,
+  "needsCover": false
+ },
+ {
+  "name": "samples/anna-karenina.fb2",
+  "file": "reflow/fb2.fb2",
+  "title": "Anna Karenina",
+  "author": "Leo Tolstoy",
+  "format": "fb2",
+  "status": "unread",
+  "addedDaysAgo": 100,
+  "collections": [
+   "Classics"
+  ],
+  "cover": "/fixtures/covers/anna-karenina.jpg"
+ },
+ {
+  "name": "samples/the-master-and-margarita.fb2",
+  "file": "reflow/fb2.fb2",
+  "title": "The Master and Margarita",
+  "author": "Mikhail Bulgakov",
+  "format": "fb2",
+  "status": "unread",
+  "addedDaysAgo": 33,
+  "collections": [
+   "Fiction"
+  ],
+  "needsCover": false
+ },
+ {
+  "name": "samples/walden.mobi",
+  "file": "reflow/mobi.mobi",
+  "title": "Walden",
+  "author": "Henry David Thoreau",
+  "format": "mobi",
+  "status": "unread",
+  "addedDaysAgo": 140,
+  "collections": [
+   "Classics"
+  ],
+  "cover": "/fixtures/covers/walden.jpg"
+ },
+ {
+  "name": "samples/the-design-of-everyday-things.pdf",
+  "file": "pdf/text.pdf",
+  "title": "The Design of Everyday Things",
+  "author": "Don Norman",
+  "format": "pdf",
+  "status": "finished",
+  "addedDaysAgo": 500,
+  "collections": [
+   "Non-fiction"
+  ],
+  "progress": 1,
+  "openedMinutesAgo": 172800,
+  "needsCover": false
+ },
+ {
+  "name": "samples/ficciones.epub",
+  "file": "reflow/epub3.epub",
+  "title": "Ficciones",
+  "author": "Jorge Luis Borges",
+  "format": "epub",
+  "status": "reading",
+  "addedDaysAgo": 70,
+  "collections": [
+   "Fiction",
+   "Favourites"
+  ],
+  "wordCount": 52000,
+  "progress": 0.55,
+  "openedMinutesAgo": 18720,
+  "cover": "/fixtures/covers/ficciones.jpg"
+ },
+ {
+  "name": "samples/mrs-dalloway.epub",
+  "file": "reflow/epub3.epub",
+  "title": "Mrs Dalloway",
+  "author": "Virginia Woolf",
+  "format": "epub",
+  "status": "reading",
+  "addedDaysAgo": 5,
+  "collections": [
+   "Fiction",
+   "Classics"
+  ],
+  "needsCover": false,
+  "available": false,
+  "progress": 0.27,
+  "openedMinutesAgo": 23040
+ },
+ {
+  "name": "samples/a-room-of-ones-own.azw3",
+  "file": "reflow/azw3.azw3",
+  "title": "A Room of One’s Own",
+  "author": "Virginia Woolf",
+  "format": "azw3",
+  "status": "finished",
+  "addedDaysAgo": 260,
+  "collections": [
+   "Non-fiction"
+  ],
+  "progress": 1,
+  "openedMinutesAgo": 115200,
+  "needsCover": false
+ },
+ {
+  "name": "samples/siddhartha.epub",
+  "file": "reflow/epub3.epub",
+  "title": "Siddhartha",
+  "author": "Hermann Hesse",
+  "format": "epub",
+  "status": "unread",
+  "addedDaysAgo": 1,
+  "collections": [
+   "Fiction"
+  ],
+  "cover": "/fixtures/covers/siddhartha.jpg"
+ },
+ {
+  "name": "samples/the-little-prince.pdf",
+  "file": "pdf/text.pdf",
+  "title": "The Little Prince",
+  "author": "Antoine de Saint-Exupéry",
+  "format": "pdf",
+  "status": "finished",
+  "addedDaysAgo": 600,
+  "collections": [
+   "Fiction"
+  ],
+  "progress": 1,
+  "openedMinutesAgo": 288000,
+  "needsCover": false
+ },
+ {
+  "name": "samples/leaves-of-grass.epub",
+  "file": "reflow/epub3.epub",
+  "title": "Leaves of Grass",
+  "author": "Walt Whitman",
+  "format": "epub",
+  "status": "unread",
+  "addedDaysAgo": 44,
+  "collections": [
+   "Poetry"
+  ],
+  "cover": "/fixtures/covers/leaves-of-grass.jpg"
+ },
+ {
+  "name": "samples/the-book-of-tea.mobi",
+  "file": "reflow/mobi.mobi",
+  "title": "The Book of Tea",
+  "author": "Kakuzo Okakura",
+  "format": "mobi",
+  "status": "reading",
+  "addedDaysAgo": 150,
+  "collections": [
+   "Non-fiction"
+  ],
+  "wordCount": 21000,
+  "progress": 0.8,
+  "openedMinutesAgo": 7200,
+  "cover": "/fixtures/covers/the-book-of-tea.jpg"
+ },
+ {
+  "name": "samples/calculus-made-easy.pdf",
+  "file": "pdf/text.pdf",
+  "title": "Calculus Made Easy",
+  "author": "Silvanus P. Thompson",
+  "format": "pdf",
+  "status": "unread",
+  "addedDaysAgo": 9,
+  "collections": [
+   "Reference"
+  ],
+  "needsCover": false
+ }
+]

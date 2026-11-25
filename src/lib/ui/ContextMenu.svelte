@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Snippet } from 'svelte';
+  import { flushSync, type Snippet } from 'svelte';
   import MenuList from './MenuList.svelte';
   import type { MenuItem } from './menu';
 
@@ -24,6 +24,7 @@
     returnTo = document.activeElement as HTMLElement | null;
     x = px;
     y = py;
+    flushSync(); // render the new items before measuring
     panel.showPopover();
     // clamp into the viewport once we know the size
     const r = panel.getBoundingClientRect();
@@ -60,6 +61,8 @@
   .ctx-area { display: contents; }
   .ctx {
     position: fixed;
+    max-height: calc(100vh - 16px);
+    overflow: auto;
     z-index: var(--z-popover);
     background: var(--flyout-bg);
     color: var(--text);

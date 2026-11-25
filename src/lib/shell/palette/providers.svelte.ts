@@ -31,6 +31,8 @@ export interface PaletteItem {
   /** group header (category); consecutive items with the same group share one header */
   group?: string;
   icon?: IconName;
+  /** a small book cover instead of an icon (Ctrl+P switcher): image URL, or a tinted block of `hue` */
+  thumb?: { src: string | null; hue: number };
   /** display label, e.g. "Ctrl+K" or "g g" */
   shortcut?: string;
   /** matched character indices into `title` */

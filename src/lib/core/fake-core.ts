@@ -497,9 +497,12 @@ export function createFakeRuntime(): CoreRuntime {
       textIndex.clear();
       ocrCache.clear();
       progress.clear();
+      collections.clear();
+      membership.clear();
     },
     addFixture: (name: string, e: Partial<ManifestEntry> = {}) => {
       const b = addBook(name, e);
+      sample(b, { name, ...e }); // status, progress, cover, collections... as in manifest.json
       announce([b.id]);
       return b.id;
     },

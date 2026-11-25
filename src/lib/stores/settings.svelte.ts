@@ -53,6 +53,8 @@ export interface Settings {
   activeTypographyProfile: string | null;
   /** user keymap diff (KeymapDiff); null = shipped defaults */
   keymap: KeymapDiff | null;
+  /** library home: cover grid or compact list, and the sort order (T7) */
+  library: { view: 'grid' | 'list'; sort: 'recent' | 'added' | 'title' | 'author' | 'progress'; reverse: boolean };
 }
 
 export const SETTINGS_DEFAULTS: Readonly<Settings> = Object.freeze({
@@ -72,6 +74,7 @@ export const SETTINGS_DEFAULTS: Readonly<Settings> = Object.freeze({
   typographyProfiles: [],
   activeTypographyProfile: null,
   keymap: null,
+  library: { view: 'grid' as const, sort: 'recent' as const, reverse: false },
 });
 
 export type SettingKey = keyof Settings;

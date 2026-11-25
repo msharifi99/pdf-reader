@@ -110,6 +110,7 @@ export const COMMAND_TABLE: readonly CommandMeta[] = [
   m('library.toggleView', 'Toggle grid / list view', 'Library', L),
   m('library.addFolder', 'Add watched folder', 'Library', L),
   m('library.newCollection', 'New collection', 'Library', L),
+  m('library.toggleCollection', 'Add to / remove from collection', 'Library', L, { hidden: true }),
   // Comics
   m('comic.left', 'Left page (direction aware)', 'Comic', ['comic'], { repeatable: true, hidden: true }),
   m('comic.right', 'Right page (direction aware)', 'Comic', ['comic'], { repeatable: true, hidden: true }),

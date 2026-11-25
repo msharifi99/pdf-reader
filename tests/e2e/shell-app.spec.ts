@@ -6,7 +6,7 @@ async function boot(page: Page) {
   await page.goto('/');
   await expect(page.getByTestId('library-view')).toBeVisible();
   // the keyboard dispatcher listens on window; make sure the page has focus
-  await page.locator('body').click({ position: { x: 600, y: 500 } });
+  await page.locator('body').click({ position: { x: 8, y: 300 } }); // the page gutter: the library is full of covers now
 }
 
 const palette = (page: Page) => page.getByTestId('palette');

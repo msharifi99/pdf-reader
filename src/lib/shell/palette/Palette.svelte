@@ -292,6 +292,7 @@
           onmousemove={() => selected !== i && (selected = i)}
           onclick={() => runItem(i)}
         >
+          {#if it.thumb}<span class="row-thumb" style:--h={it.thumb.hue}>{#if it.thumb.src}<img src={it.thumb.src} alt="" />{/if}</span>{/if}
           {#if anyIcon}<span class="row-icon">{#if it.icon}<Icon name={it.icon} size={16} />{/if}</span>{/if}
           <span class="title" class:matching={!!it.indices?.length}>
             {#each segments(it.title, it.indices) as s, k (k)}{#if s.m}<mark>{s.t}</mark>{:else}{s.t}{/if}{/each}
@@ -421,6 +422,8 @@
     border-radius: 2px;
     background: var(--accent);
   }
+  .row-thumb { flex: none; width: 20px; height: 30px; overflow: hidden; border-radius: 2px; background: color-mix(in oklch, oklch(0.55 0.07 var(--h)) 55%, var(--bg)); box-shadow: 0 0 0 1px var(--border-soft); }
+  .row-thumb img { width: 100%; height: 100%; object-fit: cover; }
   .row-icon { display: grid; flex: none; width: 16px; color: var(--muted); }
   .row[aria-selected='true'] .row-icon { color: var(--text); }
   .title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
