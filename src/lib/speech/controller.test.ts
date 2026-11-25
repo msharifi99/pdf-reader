@@ -260,7 +260,7 @@ describe('settings', () => {
     await flush();
     expect(synth.current && (synth.current as FakeUtterance).rate).toBe(1.25);
     await vi.advanceTimersByTimeAsync(500);
-    expect(save).toHaveBeenLastCalledWith({ voice: 'v1', rate: 1.25 });
+    expect(save).toHaveBeenLastCalledWith({ voice: 'v1', rate: 1.25, highlight: true });
   });
 });
 

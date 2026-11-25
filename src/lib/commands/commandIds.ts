@@ -69,6 +69,13 @@ export const COMMAND_TABLE: readonly CommandMeta[] = [
   m('reader.autoScrollFaster', 'Auto-scroll faster', 'Reading', R, { repeatable: true }),
   m('reader.autoScrollSlower', 'Auto-scroll slower', 'Reading', R, { repeatable: true }),
   m('reader.readAloud', 'Read aloud', 'Reading', R, { keywords: ['speech', 'tts', 'listen'] }),
+  m('speech.next', 'Read aloud: next sentence', 'Reading', R, { repeatable: true, keywords: ['skip'] }),
+  m('speech.prev', 'Read aloud: previous sentence', 'Reading', R, { repeatable: true, keywords: ['back'] }),
+  m('speech.stop', 'Stop reading aloud', 'Reading', R),
+  m('speech.faster', 'Read aloud: faster', 'Reading', R, { repeatable: true }),
+  m('speech.slower', 'Read aloud: slower', 'Reading', R, { repeatable: true }),
+  m('lookup.define', 'Look up selection (dictionary)', 'Reading', R, { keywords: ['define', 'dictionary', 'meaning', 'word'] }),
+  m('lookup.wikipedia', 'Look up selection on Wikipedia', 'Reading', R, { keywords: ['wiki', 'encyclopedia', 'summary'] }),
   // Annotations
   m('annotate.highlightYellow', 'Highlight yellow', 'Annotations', R),
   m('annotate.highlightGreen', 'Highlight green', 'Annotations', R),

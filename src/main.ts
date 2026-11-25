@@ -20,6 +20,7 @@ if (new URLSearchParams(location.search).has('gallery')) {
   keymap.onChange(() => settings.set('keymap', keymap.serialize()));
   installKeyCaptureHook(); // before the dispatcher: the shortcuts editor must see keys first
   installKeyboard();
+  (await import('./lib/speech/ui/install')).installReadAloudAndLookup();
   const { default: App } = await import('./App.svelte');
   mount(App, { target });
 }

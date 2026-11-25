@@ -4,6 +4,7 @@
   import type { Flow } from '../../engines/types';
   import SettingGroup from '../SettingGroup.svelte';
   import SettingRow from '../SettingRow.svelte';
+  import SpeechSettings from '../../speech/ui/SpeechSettings.svelte';
 
   const s = $derived(settings.value);
   const flows: { value: Flow; label: string }[] = [
@@ -50,6 +51,8 @@
     </div>
   </SettingRow>
 </SettingGroup>
+
+<SpeechSettings />
 
 <style>
   .slider { width: 240px; }

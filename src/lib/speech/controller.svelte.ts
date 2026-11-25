@@ -10,8 +10,8 @@ export type SpeechEngine = Pick<Engine, 'textStream' | 'setDecorations' | 'goTo'
 };
 
 export interface SpeechStorage {
-  load(): Promise<{ voice?: string | null; rate?: number } | null>;
-  save(v: { voice: string | null; rate: number }): Promise<void>;
+  load(): Promise<{ voice?: string | null; rate?: number; highlight?: boolean } | null>;
+  save(v: { voice: string | null; rate: number; highlight: boolean }): Promise<void>;
 }
 
 export interface SpeechDeps {
@@ -40,6 +40,10 @@ export class SpeechController {
   rate = $state(1);
   voices = $state.raw<VoiceInfo[]>([]);
   currentSentence = $state<string | null>(null);
+  /** 0..1: how far into the current sentence the voice is (from word boundaries). */
+  sentenceProgress = $state(0);
+  /** Draw the spoken word; when off only the faint sentence tint follows along. Remembered. */
+  highlight = $state(true);
   /** A calm, user-ready message when speech couldn't run; cleared on the next start. */
   error = $state<string | null>(null);
   readonly available: boolean;
@@ -69,6 +73,7 @@ export class SpeechController {
   #failures = 0;
   #retries = 0;
   #listeners: (() => void)[] = [];
+  #previewed = false; // a preview cancelled the paused utterance: resume re-speaks the sentence
 
   constructor(deps: SpeechDeps = {}) {
     this.#synth = deps.synth !== undefined ? deps.synth : typeof speechSynthesis !== 'undefined' ? speechSynthesis : null;
@@ -95,6 +100,7 @@ export class SpeechController {
       if (s && typeof s === 'object') {
         if (typeof s.rate === 'number') this.rate = clamp(s.rate, RATE_MIN, RATE_MAX);
         if (typeof s.voice === 'string' || s.voice === null) this.voice = s.voice ?? null;
+        if (typeof s.highlight === 'boolean') this.highlight = s.highlight;
       }
     } catch {
       /* defaults */
@@ -127,9 +133,37 @@ export class SpeechController {
     this.#restartSoon();
   }
 
+  setHighlight(on: boolean): void {
+    this.highlight = on;
+    this.#persist();
+  }
+
   #persist(): void {
     clearTimeout(this.#saveTimer);
-    this.#saveTimer = setTimeout(() => void this.#storage?.save({ voice: this.voice, rate: this.rate }).catch(() => {}), 400);
+    this.#saveTimer = setTimeout(() => void this.#storage?.save({ voice: this.voice, rate: this.rate, highlight: this.highlight }).catch(() => {}), 400);
+  }
+
+  /** Speak a short sample with `uri` at the current rate. Pauses reading first (resume picks the sentence up again). */
+  preview(uri: string | null, text = 'This is how I sound when I read to you.'): void {
+    const synth = this.#synth;
+    const U = this.#Utterance;
+    if (!synth || !U) return;
+    if (this.state === 'speaking') this.pause();
+    if (this.state === 'paused') {
+      this.#epoch++; // the cancelled utterance's error event must not stop reading
+      this.#live.clear();
+      this.#previewed = true;
+    }
+    synth.cancel();
+    synth.resume();
+    const u = new U(text);
+    u.rate = this.rate;
+    const v = uri ? this.voices.find((x) => x.uri === uri) : pickVoice(this.voices, null, this.#lang);
+    if (v) {
+      u.voice = (synth.getVoices?.() ?? []).find((x) => (x.voiceURI || x.name) === v.uri) ?? null;
+      u.lang = v.lang;
+    }
+    synth.speak(u);
   }
 
   /** Utterance rate/voice are fixed at creation: re-speak the current sentence once the user stops dragging. */
@@ -175,8 +209,11 @@ export class SpeechController {
     if (this.state !== 'paused') return;
     this.state = 'speaking';
     this.#synth?.resume();
-    // A pause that outlived the utterance (or a dropped one) would stay silent forever.
-    if (!this.#synth?.speaking && !this.#synth?.pending) this.#jump(Math.max(this.#playing, 0));
+    // A pause that outlived the utterance (or a dropped one, or a voice preview) would stay silent forever.
+    if (this.#previewed || (!this.#synth?.speaking && !this.#synth?.pending)) {
+      this.#previewed = false;
+      this.#jump(Math.max(this.#playing, 0));
+    }
     else this.#arm(this.#estimate(this.#chunks[this.#playing]?.text ?? '') + 2000);
   }
 
@@ -202,6 +239,8 @@ export class SpeechController {
     }
     this.state = 'idle';
     this.currentSentence = null;
+    this.sentenceProgress = 0;
+    this.#previewed = false;
     this.#engine = null;
   }
 
@@ -300,6 +339,7 @@ export class SpeechController {
     const chunk = this.#chunks[i];
     if (!chunk) return;
     this.currentSentence = chunk.text;
+    this.sentenceProgress = 0;
     this.#arm(this.#estimate(chunk.text) * 2 + 4000);
     this.#sentenceAnchor = chunk.anchorFor(0, chunk.text.length).catch(() => null);
     void this.#draw(i, null);
@@ -315,7 +355,8 @@ export class SpeechController {
     this.#arm(5000);
     const start = clamp(e.charIndex, 0, chunk.text.length);
     const len = (e as { charLength?: number }).charLength || wordLenAt(chunk.text, start);
-    if (typeof document !== 'undefined' && document.hidden) return; // nobody is looking: skip the drawing work
+    this.sentenceProgress = Math.min(1, (start + len) / Math.max(1, chunk.text.length));
+    if (!this.highlight || (typeof document !== 'undefined' && document.hidden)) return; // nothing to draw (or nobody is looking)
     void this.#draw(i, [start, Math.min(chunk.text.length, start + len)]);
   }
 

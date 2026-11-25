@@ -58,6 +58,22 @@ const softAccent = (rects: R[], o: { color: string; padding?: number }): SVGElem
   return g;
 };
 
+/** Read-aloud (T13): accent wash, rounded, plus a 2px underline for the word. Never a highlight colour, so it can't be mistaken for one. */
+function speechMark(rects: R[], o: { color: string; fill: number; underline: boolean }): SVGElement {
+  const g = el('g');
+  g.setAttribute('fill', o.color);
+  for (const r of rects) {
+    const bg = el('rect');
+    for (const [k, v] of Object.entries({ x: r.left - 1.5, y: r.top, width: r.width + 3, height: r.height, rx: 3, 'fill-opacity': o.fill })) bg.setAttribute(k, String(v));
+    g.append(bg);
+    if (!o.underline) continue;
+    const u = el('rect');
+    for (const [k, v] of Object.entries({ x: r.left - 1.5, y: r.bottom - 2, width: r.width + 3, height: 2, rx: 1, 'fill-opacity': 0.85 })) u.setAttribute(k, String(v));
+    g.append(u);
+  }
+  return g;
+}
+
 export function drawFor(style: DecorationStyle, theme: Theme): DrawSpec {
   switch (style.type) {
     case 'highlight':
@@ -73,8 +89,8 @@ export function drawFor(style: DecorationStyle, theme: Theme): DrawSpec {
         ? { draw: softAccent, options: { color: theme.accent, padding: 1 } }
         : { draw: Overlayer.outline, options: { color: theme.accent, width: 1.5, padding: 1, radius: 3 } };
     case 'speech-word':
-      return { draw: softAccent, options: { color: theme.accent, padding: 1 } };
+      return { draw: speechMark, options: { color: theme.accent, fill: 0.26, underline: true } };
     case 'speech-sentence':
-      return { draw: Overlayer.highlight, options: { color: theme.highlight[2] } };
+      return { draw: speechMark, options: { color: theme.accent, fill: 0.09, underline: false } };
   }
 }

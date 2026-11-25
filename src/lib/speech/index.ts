@@ -44,7 +44,7 @@ export { pickVoice, rankVoices, voiceScore, type VoiceInfo } from './voices';
 
 /** Persisted through the core's settings table under the key "speech". */
 const coreStorage: SpeechStorage = {
-  load: async () => (await core.getSetting('speech')) as { voice?: string | null; rate?: number } | null,
+  load: async () => (await core.getSetting('speech')) as { voice?: string | null; rate?: number; highlight?: boolean } | null,
   save: async (v) => void (await core.setSetting('speech', v)),
 };
 
